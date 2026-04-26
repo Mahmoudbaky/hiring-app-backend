@@ -7,7 +7,7 @@ import {
   jobAds,
   jobRequests,
 } from "../db/schema.js";
-import { AppError } from "../lib/errors.js";
+import { BadRequestError, NotFoundError, ConflictError } from "../utils/index.js";
 import type {
   CreateRequestInput,
   CreateManualRequestInput,
@@ -93,13 +93,13 @@ export const requestService = {
           eq(hiringCompanies.isActive, true)
         )
       );
-    if (!company) throw new AppError(400, "Invalid company code");
+    if (!company) throw new BadRequestError("Invalid company code");
 
     const [job] = await db
       .select()
       .from(jobAds)
       .where(and(eq(jobAds.id, data.jobAdId), eq(jobAds.isPublished, true)));
-    if (!job) throw new AppError(404, "Job not found or not open");
+    if (!job) throw new NotFoundError("Job not found or not open");
 
     const { record: applicantRecord, isNew } = await upsertApplicant(data.applicant);
 
@@ -112,7 +112,7 @@ export const requestService = {
           eq(jobRequests.jobAdId, data.jobAdId)
         )
       );
-    if (duplicate) throw new AppError(409, "Already applied for this job");
+    if (duplicate) throw new ConflictError("Already applied for this job");
 
     if (isNew) await insertQualifications(applicantRecord.id, data.qualifications);
 
@@ -140,7 +140,7 @@ export const requestService = {
       .select()
       .from(jobAds)
       .where(and(eq(jobAds.id, data.jobAdId), eq(jobAds.isPublished, true)));
-    if (!job) throw new AppError(404, "Job not found or not open");
+    if (!job) throw new NotFoundError("Job not found or not open");
 
     const { record: applicantRecord, isNew } = await upsertApplicant(data.applicant);
 
@@ -154,7 +154,7 @@ export const requestService = {
         )
       );
     if (duplicate)
-      throw new AppError(409, "This applicant has already applied for this job");
+      throw new ConflictError("This applicant has already applied for this job");
 
     if (isNew) await insertQualifications(applicantRecord.id, data.qualifications);
 

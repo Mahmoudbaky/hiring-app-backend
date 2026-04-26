@@ -5,7 +5,8 @@ import { toNodeHandler } from "better-auth/node";
 import { swaggerSpec } from "./lib/swagger.js";
 import logger from "./lib/logger.js";
 import { auth } from "./lib/auth.js";
-import { AppError } from "./lib/errors.js";
+import { errorHandler, notFoundHandler } from "./middleware/errorHandler.js";
+import { sendSuccess } from "./utils/response.js";
 import companiesRouter from "./routes/companies.routes.js";
 import usersRouter from "./routes/users.routes.js";
 import jobsRouter from "./routes/jobs.routes.js";
@@ -17,7 +18,6 @@ const app: Express = express();
 const PORT = process.env.PORT ?? 3000;
 
 // ── better-auth handler (must be before express.json()) ──────────────────────
-// Uses middleware instead of app.all() wildcard to stay compatible with Express 5
 const authHandler = toNodeHandler(auth);
 app.use((req: Request, res: Response, next: NextFunction) => {
   if (req.originalUrl.startsWith("/api/auth/")) {
@@ -60,18 +60,12 @@ app.use("/api/applicants", applicantsRouter);
  *         description: Server is running
  */
 app.get("/api/health", (_req: Request, res: Response) => {
-  res.json({ status: "ok" });
+  sendSuccess(res, { status: "ok" }, "Server is running");
 });
 
-// ── Global error handler ─────────────────────────────────────────────────────
-app.use((err: Error, _req: Request, res: Response, _next: NextFunction) => {
-  if (err instanceof AppError) {
-    res.status(err.statusCode).json({ error: err.message });
-    return;
-  }
-  logger.error(err.message, { stack: err.stack });
-  res.status(500).json({ error: "Internal server error" });
-});
+// ── 404 + global error handler (must be last) ────────────────────────────────
+app.use(notFoundHandler);
+app.use(errorHandler);
 
 app.listen(PORT, () => {
   logger.info(`Server running on http://localhost:${PORT}`);

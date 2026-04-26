@@ -2,13 +2,11 @@ import type { Request, Response, NextFunction } from "express";
 import { z } from "zod";
 
 export function validate(schema: z.ZodType) {
-  return (req: Request, res: Response, next: NextFunction): void => {
+  return (req: Request, _res: Response, next: NextFunction): void => {
     const result = schema.safeParse(req.body);
     if (!result.success) {
-      res.status(422).json({
-        error: "Validation failed",
-        issues: result.error.issues,
-      });
+      // Pass ZodError to the global errorHandler which formats it consistently
+      next(result.error);
       return;
     }
     req.body = result.data;
