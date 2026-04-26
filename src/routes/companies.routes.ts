@@ -1,8 +1,8 @@
 import { Router } from "express";
-import { eq } from "drizzle-orm";
-import { db } from "../db/index.js";
-import { hiringCompanies } from "../db/schema.js";
 import { requireAuth, requireRole } from "../middleware/requireAuth.js";
+import { validate } from "../middleware/validate.js";
+import { createCompanySchema, updateCompanySchema } from "../schemas/company.schema.js";
+import * as companyController from "../controllers/company.controller.js";
 
 const router: Router = Router();
 
@@ -21,17 +21,8 @@ const router: Router = Router();
  *     tags: [Companies]
  *     security:
  *       - bearerAuth: []
- *     responses:
- *       200:
- *         description: Array of companies
  */
-router.get("/", requireAuth, requireRole("super_admin"), async (_req, res) => {
-  const companies = await db
-    .select()
-    .from(hiringCompanies)
-    .orderBy(hiringCompanies.createdAt);
-  res.json(companies);
-});
+router.get("/", requireAuth, requireRole("super_admin"), companyController.list);
 
 /**
  * @swagger
@@ -41,30 +32,8 @@ router.get("/", requireAuth, requireRole("super_admin"), async (_req, res) => {
  *     tags: [Companies]
  *     security:
  *       - bearerAuth: []
- *     parameters:
- *       - in: path
- *         name: id
- *         required: true
- *         schema:
- *           type: string
  */
-router.get(
-  "/:id",
-  requireAuth,
-  requireRole("super_admin"),
-  async (req, res) => {
-    const [company] = await db
-      .select()
-      .from(hiringCompanies)
-      .where(eq(hiringCompanies.id, req.params.id as string));
-
-    if (!company) {
-      res.status(404).json({ error: "Company not found" });
-      return;
-    }
-    res.json(company);
-  }
-);
+router.get("/:id", requireAuth, requireRole("super_admin"), companyController.getOne);
 
 /**
  * @swagger
@@ -93,23 +62,8 @@ router.post(
   "/",
   requireAuth,
   requireRole("super_admin"),
-  async (req, res) => {
-    const {
-      companyName,
-      uniqueCode,
-      phoneNumber,
-      address,
-      managerName,
-      companyRecord,
-    } = req.body;
-
-    const [company] = await db
-      .insert(hiringCompanies)
-      .values({ companyName, uniqueCode, phoneNumber, address, managerName, companyRecord })
-      .returning();
-
-    res.status(201).json(company);
-  }
+  validate(createCompanySchema),
+  companyController.create
 );
 
 /**
@@ -125,22 +79,8 @@ router.patch(
   "/:id",
   requireAuth,
   requireRole("super_admin"),
-  async (req, res) => {
-    const { companyName, phoneNumber, address, managerName, companyRecord, isActive } =
-      req.body;
-
-    const [company] = await db
-      .update(hiringCompanies)
-      .set({ companyName, phoneNumber, address, managerName, companyRecord, isActive, updatedAt: new Date() })
-      .where(eq(hiringCompanies.id, req.params.id as string))
-      .returning();
-
-    if (!company) {
-      res.status(404).json({ error: "Company not found" });
-      return;
-    }
-    res.json(company);
-  }
+  validate(updateCompanySchema),
+  companyController.update
 );
 
 export default router;

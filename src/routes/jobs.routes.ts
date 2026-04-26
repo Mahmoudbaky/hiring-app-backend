@@ -1,8 +1,8 @@
 import { Router } from "express";
-import { eq, desc } from "drizzle-orm";
-import { db } from "../db/index.js";
-import { jobAds } from "../db/schema.js";
 import { requireAuth, requireRole } from "../middleware/requireAuth.js";
+import { validate } from "../middleware/validate.js";
+import { createJobSchema, updateJobSchema } from "../schemas/job.schema.js";
+import * as jobController from "../controllers/job.controller.js";
 
 const router: Router = Router();
 
@@ -22,19 +22,7 @@ const router: Router = Router();
  *     security:
  *       - bearerAuth: []
  */
-router.get("/", requireAuth, async (req, res) => {
-  const isSuperAdmin = req.user!.role === "super_admin";
-
-  const jobs = isSuperAdmin
-    ? await db.select().from(jobAds).orderBy(desc(jobAds.createdAt))
-    : await db
-        .select()
-        .from(jobAds)
-        .where(eq(jobAds.isPublished, true))
-        .orderBy(desc(jobAds.createdAt));
-
-  res.json(jobs);
-});
+router.get("/", requireAuth, jobController.list);
 
 /**
  * @swagger
@@ -45,22 +33,7 @@ router.get("/", requireAuth, async (req, res) => {
  *     security:
  *       - bearerAuth: []
  */
-router.get("/:id", requireAuth, async (req, res) => {
-  const [job] = await db
-    .select()
-    .from(jobAds)
-    .where(eq(jobAds.id, req.params.id as string));
-
-  if (!job) {
-    res.status(404).json({ error: "Job not found" });
-    return;
-  }
-  if (req.user!.role !== "super_admin" && !job.isPublished) {
-    res.status(404).json({ error: "Job not found" });
-    return;
-  }
-  res.json(job);
-});
+router.get("/:id", requireAuth, jobController.getOne);
 
 /**
  * @swagger
@@ -79,45 +52,21 @@ router.get("/:id", requireAuth, async (req, res) => {
  *             required: [adTitle, adType]
  *             properties:
  *               adTitle: { type: string }
- *               jobTitleId: { type: string }
- *               adType:
- *                 type: string
- *                 enum: [remote, on_site, hybrid]
+ *               jobTitleId: { type: string, format: uuid }
+ *               adType: { type: string, enum: [remote, on_site, hybrid] }
  *               salaryFrom: { type: integer }
  *               salaryTo: { type: integer }
  *               description: { type: string }
  *               isPublished: { type: boolean }
- *               deadline: { type: string, format: date-time }
+ *               deadline: { type: string }
  */
-router.post("/", requireAuth, requireRole("super_admin"), async (req, res) => {
-    const {
-    adTitle,
-    jobTitleId,
-    adType,
-    salaryFrom,
-    salaryTo,
-    description,
-    isPublished,
-    deadline,
-  } = req.body;
-
-  const [job] = await db
-    .insert(jobAds)
-    .values({
-      adTitle,
-      jobTitleId,
-      adType,
-      salaryFrom,
-      salaryTo,
-      description,
-      isPublished: isPublished ?? false,
-      deadline: deadline ? new Date(deadline) : null,
-      createdBy: req.user!.id,
-    })
-    .returning();
-
-  res.status(201).json(job);
-});
+router.post(
+  "/",
+  requireAuth,
+  requireRole("super_admin"),
+  validate(createJobSchema),
+  jobController.create
+);
 
 /**
  * @swagger
@@ -132,40 +81,8 @@ router.patch(
   "/:id",
   requireAuth,
   requireRole("super_admin"),
-  async (req, res) => {
-    const {
-      adTitle,
-      jobTitleId,
-      adType,
-      salaryFrom,
-      salaryTo,
-      description,
-      isPublished,
-      deadline,
-    } = req.body;
-
-    const [job] = await db
-      .update(jobAds)
-      .set({
-        adTitle,
-        jobTitleId,
-        adType,
-        salaryFrom,
-        salaryTo,
-        description,
-        isPublished,
-        deadline: deadline !== undefined ? new Date(deadline) : undefined,
-        updatedAt: new Date(),
-      })
-      .where(eq(jobAds.id, req.params.id as string))
-      .returning();
-
-    if (!job) {
-      res.status(404).json({ error: "Job not found" });
-      return;
-    }
-    res.json(job);
-  }
+  validate(updateJobSchema),
+  jobController.update
 );
 
 /**
@@ -177,22 +94,6 @@ router.patch(
  *     security:
  *       - bearerAuth: []
  */
-router.delete(
-  "/:id",
-  requireAuth,
-  requireRole("super_admin"),
-  async (req, res) => {
-    const [deleted] = await db
-      .delete(jobAds)
-      .where(eq(jobAds.id, req.params.id as string))
-      .returning({ id: jobAds.id });
-
-    if (!deleted) {
-      res.status(404).json({ error: "Job not found" });
-      return;
-    }
-    res.json({ success: true });
-  }
-);
+router.delete("/:id", requireAuth, requireRole("super_admin"), jobController.remove);
 
 export default router;

@@ -5,6 +5,7 @@ import { toNodeHandler } from "better-auth/node";
 import { swaggerSpec } from "./lib/swagger.js";
 import logger from "./lib/logger.js";
 import { auth } from "./lib/auth.js";
+import { AppError } from "./lib/errors.js";
 import companiesRouter from "./routes/companies.routes.js";
 import usersRouter from "./routes/users.routes.js";
 import jobsRouter from "./routes/jobs.routes.js";
@@ -64,6 +65,10 @@ app.get("/api/health", (_req: Request, res: Response) => {
 
 // ── Global error handler ─────────────────────────────────────────────────────
 app.use((err: Error, _req: Request, res: Response, _next: NextFunction) => {
+  if (err instanceof AppError) {
+    res.status(err.statusCode).json({ error: err.message });
+    return;
+  }
   logger.error(err.message, { stack: err.stack });
   res.status(500).json({ error: "Internal server error" });
 });
