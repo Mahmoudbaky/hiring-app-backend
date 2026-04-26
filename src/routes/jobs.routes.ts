@@ -22,6 +22,9 @@ const router: Router = Router();
  *     security:
  *       - bearerAuth: []
  */
+/** Public — no auth required */
+router.get("/public", jobController.listPublic);
+
 router.get("/", requireAuth, jobController.list);
 
 /**

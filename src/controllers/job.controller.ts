@@ -29,3 +29,7 @@ export async function remove(req: Request, res: Response): Promise<void> {
   if (!deleted) throw new NotFoundError("Job not found");
   sendSuccess(res, null, "Deleted successfully");
 }
+
+export async function listPublic(_req: Request, res: Response): Promise<void> {
+  sendSuccess(res, await jobService.listPublic());
+}

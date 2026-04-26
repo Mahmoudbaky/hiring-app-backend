@@ -58,4 +58,12 @@ export const jobService = {
       .returning({ id: jobAds.id });
     return deleted ?? null;
   },
+
+  async listPublic() {
+    return db
+      .select()
+      .from(jobAds)
+      .where(eq(jobAds.isPublished, true))
+      .orderBy(desc(jobAds.createdAt));
+  },
 };
