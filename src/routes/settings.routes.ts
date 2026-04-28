@@ -44,6 +44,8 @@ router.delete(
 
 // ── Qualification Types ───────────────────────────────────────────────────────
 
+/** Public — used by the self-apply form (no auth required) */
+router.get("/qualification-types/public", settingsController.listQualificationTypes);
 router.get("/qualification-types", requireAuth, settingsController.listQualificationTypes);
 router.post(
   "/qualification-types",
