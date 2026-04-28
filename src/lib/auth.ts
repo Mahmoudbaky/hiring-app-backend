@@ -9,6 +9,13 @@ export const auth = betterAuth({
   advanced: {
     useSecureCookies: process.env.NODE_ENV === "production",
     crossSubDomainCookies: { enabled: false },
+    ...(process.env.NODE_ENV === "production" && {
+      defaultCookieAttributes: {
+        sameSite: "none",
+        secure: true,
+        httpOnly: true,
+      },
+    }),
   },
   database: drizzleAdapter(db, {
     provider: "pg",
