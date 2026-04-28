@@ -1,5 +1,6 @@
 import "dotenv/config";
 import express, { type Express, type Request, type Response, type NextFunction } from "express";
+import cors from "cors";
 import swaggerUi from "swagger-ui-express";
 import { toNodeHandler } from "better-auth/node";
 import { swaggerSpec } from "./lib/swagger.js";
@@ -17,6 +18,14 @@ import uploadRouter from "./routes/upload.routes.js";
 
 const app: Express = express();
 const PORT = process.env.PORT ?? 3000;
+
+// ── CORS (must be before all routes including better-auth) ───────────────────
+app.use(
+  cors({
+    origin: process.env.FRONTEND_URL ?? "http://localhost:5173",
+    credentials: true,
+  })
+);
 
 // ── better-auth handler (must be before express.json()) ──────────────────────
 const authHandler = toNodeHandler(auth);
