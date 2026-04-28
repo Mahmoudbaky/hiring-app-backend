@@ -69,10 +69,12 @@ app.get("/api/health", (_req: Request, res: Response) => {
 app.use(notFoundHandler);
 app.use(errorHandler);
 
-app.listen(PORT, () => {
-  logger.info(`Server running on http://localhost:${PORT}`);
-  logger.info(`API docs at http://localhost:${PORT}/api/docs`);
-  logger.info(`Auth endpoints at http://localhost:${PORT}/api/auth`);
-});
+if (!process.env.VERCEL) {
+  app.listen(PORT, () => {
+    logger.info(`Server running on http://localhost:${PORT}`);
+    logger.info(`API docs at http://localhost:${PORT}/api/docs`);
+    logger.info(`Auth endpoints at http://localhost:${PORT}/api/auth`);
+  });
+}
 
 export default app;
