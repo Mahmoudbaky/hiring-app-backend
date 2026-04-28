@@ -37,10 +37,7 @@ export const auth = betterAuth({
       },
     },
   },
-  trustedOrigins: [
-    "https://hiring-app-peach.vercel.app",
-    "http://localhost:5173",
-  ],
+  trustedOrigins: [process.env.FRONTEND_URL ?? "http://localhost:5173"],
 });
 
 export type Auth = typeof auth;
