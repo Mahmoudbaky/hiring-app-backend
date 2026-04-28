@@ -4,11 +4,12 @@ import { db } from "../db/index.js";
 import * as schema from "../db/schema.js";
 
 export const auth = betterAuth({
-  baseURL:
-    process.env.BETTER_AUTH_URL ??
-    process.env.FRONTEND_URL?.replace("5173", "3000") ??
-    "http://localhost:3000",
+  baseURL: process.env.BETTER_AUTH_URL ?? "http://localhost:3000",
   secret: process.env.BETTER_AUTH_SECRET,
+  advanced: {
+    useSecureCookies: process.env.NODE_ENV === "production",
+    crossSubDomainCookies: { enabled: false },
+  },
   database: drizzleAdapter(db, {
     provider: "pg",
     schema: {
