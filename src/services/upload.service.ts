@@ -1,41 +1,41 @@
 import { Readable } from "stream";
 import { extname, basename } from "path";
 import { cloudinary } from "../lib/cloudinary.js";
-import { BadRequestError } from "../utils/errors.js";
+// import { BadRequestError } from "../utils/errors.js";
 
-function extractPublicId(url: string): string {
-  const match = url.match(/\/raw\/upload\/(?:v\d+\/)?(.+)$/);
-  if (!match) throw new BadRequestError("Invalid Cloudinary URL");
-  return match[1];
-}
+// function extractPublicId(url: string): string {
+//   const match = url.match(/\/raw\/upload\/(?:v\d+\/)?(.+)$/);
+//   if (!match) throw new BadRequestError("Invalid Cloudinary URL");
+//   return match[1];
+// }
 
 /** Fetch the CV from Cloudinary server-side and return the response to be streamed. */
-export async function fetchCvFromCloudinary(storedUrl: string) {
-  const publicId = extractPublicId(storedUrl);
-  const ext = extname(publicId).replace(".", "") || "pdf";
-  const filename = basename(publicId);
+// export async function fetchCvFromCloudinary(storedUrl: string) {
+//   const publicId = extractPublicId(storedUrl);
+//   const ext = extname(publicId).replace(".", "") || "pdf";
+//   const filename = basename(publicId);
 
-  // SDK builds the signed download URL with correct algorithm and all required params
-  const downloadUrl = (cloudinary.utils as any).private_download_url(
-    publicId,
-    ext,
-    {
-      resource_type: "raw",
-    },
-  );
+//   // SDK builds the signed download URL with correct algorithm and all required params
+//   const downloadUrl = (cloudinary.utils as any).private_download_url(
+//     publicId,
+//     ext,
+//     {
+//       resource_type: "raw",
+//     },
+//   );
 
-  const response = await fetch(downloadUrl);
-  if (!response.ok) {
-    throw new Error(`Cloudinary returned ${response.status} for ${publicId}`);
-  }
+//   const response = await fetch(downloadUrl);
+//   if (!response.ok) {
+//     throw new Error(`Cloudinary returned ${response.status} for ${publicId}`);
+//   }
 
-  return {
-    body: response.body,
-    contentType:
-      response.headers.get("content-type") ?? "application/octet-stream",
-    filename,
-  };
-}
+//   return {
+//     body: response.body,
+//     contentType:
+//       response.headers.get("content-type") ?? "application/octet-stream",
+//     filename,
+//   };
+// }
 
 export async function uploadCv(
   buffer: Buffer,
@@ -50,10 +50,10 @@ export async function uploadCv(
   return new Promise((resolve, reject) => {
     const uploadStream = cloudinary.uploader.upload_stream(
       {
-        folder:         "hiring-app/cvs",
-        resource_type:  "raw",
-        public_id:      publicId,
-        type:           "upload",
+        folder: "hiring-app/cvs",
+        resource_type: "raw",
+        public_id: publicId,
+        type: "upload",
         access_control: [{ access_type: "anonymous" }],
       },
       (error, result) => {
