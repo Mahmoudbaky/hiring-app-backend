@@ -1,5 +1,5 @@
 import type { Request, Response, NextFunction } from "express";
-import { uploadCv, signCvUrl } from "../services/upload.service.js";
+import { uploadCv } from "../services/upload.service.js";
 import { sendSuccess } from "../utils/response.js";
 import { BadRequestError } from "../utils/errors.js";
 
@@ -13,12 +13,11 @@ export async function uploadCvFile(req: Request, res: Response, next: NextFuncti
   }
 }
 
-export async function getSignedCvUrl(req: Request, res: Response, next: NextFunction) {
+export async function proxyCv(req: Request, res: Response, next: NextFunction) {
   try {
     const { url } = req.query;
     if (!url || typeof url !== "string") throw new BadRequestError("url query param required");
-    const signedUrl = signCvUrl(url);
-    sendSuccess(res, { url: signedUrl });
+    res.redirect(url);
   } catch (err) {
     next(err);
   }

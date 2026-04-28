@@ -19,27 +19,13 @@ const upload = multer({
 
 const router: Router = Router();
 
-/**
- * @swagger
- * /api/upload/cv:
- *   post:
- *     summary: Upload a CV file (PDF or Word) to Cloudinary
- *     tags: [Upload]
- *     requestBody:
- *       required: true
- *       content:
- *         multipart/form-data:
- *           schema:
- *             type: object
- *             properties:
- *               file:
- *                 type: string
- *                 format: binary
- *     responses:
- *       200:
- *         description: Returns the Cloudinary URL
- */
 router.post("/cv", upload.single("file"), uploadController.uploadCvFile);
-router.get("/cv-signed-url", requireAuth, uploadController.getSignedCvUrl);
+
+/**
+ * GET /api/upload/cv-proxy?url=<stored_cloudinary_url>
+ * Fetches the CV from Cloudinary server-side (using API credentials) and
+ * streams it to the authenticated client — bypasses all Cloudinary access settings.
+ */
+router.get("/cv-proxy", requireAuth, uploadController.proxyCv);
 
 export default router;
