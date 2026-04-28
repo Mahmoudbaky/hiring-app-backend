@@ -6,8 +6,9 @@ import {
   hiringCompanies,
   jobAds,
   jobRequests,
+  qualificationTypeSettings,
 } from "../db/schema.js";
-import { BadRequestError, NotFoundError, ConflictError } from "../utils/index.js";
+import { BadRequestError, NotFoundError, ConflictError, ForbiddenError } from "../utils/index.js";
 import type {
   CreateRequestInput,
   CreateManualRequestInput,
@@ -66,8 +67,6 @@ const requestSelectFields = {
   submissionType: jobRequests.submissionType,
   cvUrl: jobRequests.cvUrl,
   notes: jobRequests.notes,
-  jobAdId: jobRequests.jobAdId,
-  hiringCompanyId: jobRequests.hiringCompanyId,
   createdAt: jobRequests.createdAt,
   updatedAt: jobRequests.updatedAt,
   applicant: {
@@ -77,6 +76,14 @@ const requestSelectFields = {
     phone: applicants.phone,
     gender: applicants.gender,
     currentJobLocation: applicants.currentJobLocation,
+  },
+  jobAd: {
+    id: jobAds.id,
+    adTitle: jobAds.adTitle,
+  },
+  company: {
+    id: hiringCompanies.id,
+    companyName: hiringCompanies.companyName,
   },
 };
 
@@ -191,16 +198,88 @@ export const requestService = {
       .select(requestSelectFields)
       .from(jobRequests)
       .innerJoin(applicants, eq(jobRequests.applicantId, applicants.id))
+      .innerJoin(jobAds, eq(jobRequests.jobAdId, jobAds.id))
+      .innerJoin(hiringCompanies, eq(jobRequests.hiringCompanyId, hiringCompanies.id))
       .where(whereCondition)
       .orderBy(desc(jobRequests.createdAt));
   },
 
-  async updateStatus(id: string, data: UpdateRequestStatusInput) {
+  async updateStatus(
+    id: string,
+    data: UpdateRequestStatusInput,
+    role: string,
+    userCompanyId: string | null
+  ) {
+    if (role === "company_user") {
+      const [req] = await db
+        .select({ hiringCompanyId: jobRequests.hiringCompanyId })
+        .from(jobRequests)
+        .where(eq(jobRequests.id, id));
+      if (!req) throw new NotFoundError("Request not found");
+      if (req.hiringCompanyId !== userCompanyId)
+        throw new ForbiddenError("Access denied");
+    }
+
     const [updated] = await db
       .update(jobRequests)
       .set({ ...data, updatedAt: new Date() })
       .where(eq(jobRequests.id, id))
       .returning();
     return updated ?? null;
+  },
+
+  async getById(id: string, role: string, userCompanyId: string | null) {
+    const [request] = await db
+      .select({
+        id: jobRequests.id,
+        status: jobRequests.status,
+        submissionType: jobRequests.submissionType,
+        cvUrl: jobRequests.cvUrl,
+        notes: jobRequests.notes,
+        createdAt: jobRequests.createdAt,
+        updatedAt: jobRequests.updatedAt,
+        applicant: {
+          id: applicants.id,
+          name: applicants.name,
+          email: applicants.email,
+          phone: applicants.phone,
+          gender: applicants.gender,
+          dateOfBirth: applicants.dateOfBirth,
+          currentJobLocation: applicants.currentJobLocation,
+        },
+        jobAd: {
+          id: jobAds.id,
+          adTitle: jobAds.adTitle,
+        },
+        company: {
+          id: hiringCompanies.id,
+          companyName: hiringCompanies.companyName,
+        },
+      })
+      .from(jobRequests)
+      .innerJoin(applicants, eq(jobRequests.applicantId, applicants.id))
+      .innerJoin(jobAds, eq(jobRequests.jobAdId, jobAds.id))
+      .innerJoin(hiringCompanies, eq(jobRequests.hiringCompanyId, hiringCompanies.id))
+      .where(eq(jobRequests.id, id));
+
+    if (!request) throw new NotFoundError("Request not found");
+    if (role === "company_user" && request.company.id !== userCompanyId)
+      throw new ForbiddenError("Access denied");
+
+    const qualifications = await db
+      .select({
+        id: academicQualifications.id,
+        yearObtained: academicQualifications.yearObtained,
+        instituteName: academicQualifications.instituteName,
+        typeName: qualificationTypeSettings.name,
+      })
+      .from(academicQualifications)
+      .leftJoin(
+        qualificationTypeSettings,
+        eq(academicQualifications.qualificationTypeId, qualificationTypeSettings.id)
+      )
+      .where(eq(academicQualifications.applicantId, request.applicant.id));
+
+    return { ...request, qualifications };
   },
 };

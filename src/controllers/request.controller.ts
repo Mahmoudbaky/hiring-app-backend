@@ -37,10 +37,25 @@ export async function list(req: Request, res: Response): Promise<void> {
   );
 }
 
+export async function getById(req: Request, res: Response): Promise<void> {
+  const user = req.user!;
+  sendSuccess(
+    res,
+    await requestService.getById(
+      req.params.id as string,
+      user.role,
+      user.hiringCompanyId ?? null
+    )
+  );
+}
+
 export async function updateStatus(req: Request, res: Response): Promise<void> {
+  const user = req.user!;
   const updated = await requestService.updateStatus(
     req.params.id as string,
-    req.body as UpdateRequestStatusInput
+    req.body as UpdateRequestStatusInput,
+    user.role,
+    user.hiringCompanyId ?? null
   );
   if (!updated) throw new NotFoundError("Request not found");
   sendSuccess(res, updated);

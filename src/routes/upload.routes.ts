@@ -1,5 +1,6 @@
 import { Router } from "express";
 import multer from "multer";
+import { requireAuth } from "../middleware/requireAuth.js";
 import * as uploadController from "../controllers/upload.controller.js";
 
 const ALLOWED_MIME_TYPES = new Set([
@@ -39,5 +40,6 @@ const router: Router = Router();
  *         description: Returns the Cloudinary URL
  */
 router.post("/cv", upload.single("file"), uploadController.uploadCvFile);
+router.get("/cv-signed-url", requireAuth, uploadController.getSignedCvUrl);
 
 export default router;

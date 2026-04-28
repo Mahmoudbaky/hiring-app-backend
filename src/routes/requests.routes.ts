@@ -72,6 +72,7 @@ router.post(
  *         schema: { type: string }
  */
 router.get("/", requireAuth, requestController.list);
+router.get("/:id", requireAuth, requestController.getById);
 
 /**
  * @swagger
@@ -95,7 +96,6 @@ router.get("/", requireAuth, requestController.list);
 router.patch(
   "/:id/status",
   requireAuth,
-  requireRole("super_admin"),
   validate(updateRequestStatusSchema),
   requestController.updateStatus
 );
