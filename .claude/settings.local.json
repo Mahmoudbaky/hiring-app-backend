@@ -5,7 +5,8 @@
       "Bash(pnpm typecheck *)",
       "Bash(pnpm run *)",
       "Bash(xargs ls *)",
-      "Bash(pnpm seed:settings)"
+      "Bash(pnpm seed:settings)",
+      "Bash(pnpm dlx *)"
     ]
   }
 }

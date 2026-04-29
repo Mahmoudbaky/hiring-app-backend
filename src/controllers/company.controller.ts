@@ -1,8 +1,16 @@
 import type { Request, Response } from "express";
 import { companyService } from "../services/company.service.js";
-import { NotFoundError } from "../utils/index.js";
+import { NotFoundError, BadRequestError } from "../utils/index.js";
 import { sendSuccess, sendCreated } from "../utils/response.js";
 import type { CreateCompanyInput, UpdateCompanyInput } from "../schemas/company.schema.js";
+
+export async function getMyCompany(req: Request, res: Response): Promise<void> {
+  const companyId = req.user?.hiringCompanyId;
+  if (!companyId) throw new BadRequestError("No company associated with this account");
+  const company = await companyService.getById(companyId);
+  if (!company) throw new NotFoundError("Company not found");
+  sendSuccess(res, company);
+}
 
 export async function list(_req: Request, res: Response): Promise<void> {
   sendSuccess(res, await companyService.list());

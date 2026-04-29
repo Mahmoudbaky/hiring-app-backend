@@ -26,6 +26,17 @@ router.get("/", requireAuth, requireRole("super_admin"), companyController.list)
 
 /**
  * @swagger
+ * /api/companies/mine:
+ *   get:
+ *     summary: Get the company of the currently signed-in user
+ *     tags: [Companies]
+ *     security:
+ *       - bearerAuth: []
+ */
+router.get("/mine", requireAuth, companyController.getMyCompany);
+
+/**
+ * @swagger
  * /api/companies/{id}:
  *   get:
  *     summary: Get a single company
