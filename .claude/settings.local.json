@@ -3,7 +3,9 @@
     "allow": [
       "Bash(pnpm add *)",
       "Bash(pnpm typecheck *)",
-      "Bash(pnpm run *)"
+      "Bash(pnpm run *)",
+      "Bash(xargs ls *)",
+      "Bash(pnpm seed:settings)"
     ]
   }
 }
