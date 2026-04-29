@@ -4,12 +4,18 @@ import { NotFoundError } from "../utils/index.js";
 import { sendSuccess, sendCreated } from "../utils/response.js";
 import type { CreateUserInput, UpdateUserInput } from "../schemas/user.schema.js";
 
-export async function list(_req: Request, res: Response): Promise<void> {
-  sendSuccess(res, await userService.list());
+export async function list(req: Request, res: Response): Promise<void> {
+  const companyId = req.user?.role === "super_admin" ? null : req.user?.hiringCompanyId;
+  sendSuccess(res, await userService.list(companyId));
 }
 
 export async function create(req: Request, res: Response): Promise<void> {
-  sendCreated(res, await userService.create(req.body as CreateUserInput));
+  const body = req.body as CreateUserInput;
+  // company_user can only create users for their own company
+  if (req.user?.role !== "super_admin") {
+    body.hiringCompanyId = req.user?.hiringCompanyId ?? undefined;
+  }
+  sendCreated(res, await userService.create(body));
 }
 
 export async function update(req: Request, res: Response): Promise<void> {

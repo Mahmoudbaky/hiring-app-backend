@@ -14,8 +14,12 @@ const userFields = {
 } as const;
 
 export const userService = {
-  async list() {
-    return db.select(userFields).from(users).orderBy(users.createdAt);
+  async list(hiringCompanyId?: string | null) {
+    return db
+      .select(userFields)
+      .from(users)
+      .where(hiringCompanyId ? eq(users.hiringCompanyId, hiringCompanyId) : undefined)
+      .orderBy(users.createdAt);
   },
 
   async create(data: CreateUserInput) {

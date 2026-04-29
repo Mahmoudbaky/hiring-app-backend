@@ -22,7 +22,7 @@ const router: Router = Router();
  *     security:
  *       - bearerAuth: []
  */
-router.get("/", requireAuth, requireRole("super_admin"), userController.list);
+router.get("/", requireAuth, userController.list);
 
 /**
  * @swagger
@@ -48,7 +48,6 @@ router.get("/", requireAuth, requireRole("super_admin"), userController.list);
 router.post(
   "/",
   requireAuth,
-  requireRole("super_admin"),
   validate(createUserSchema),
   userController.create
 );
