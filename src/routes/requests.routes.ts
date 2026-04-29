@@ -53,7 +53,7 @@ router.post("/", validate(createRequestSchema), requestController.submit);
 router.post(
   "/manual",
   requireAuth,
-  requireRole("company_user"),
+  requireRole("super_admin", "company_user"),
   validate(createManualRequestSchema),
   requestController.submitManual
 );

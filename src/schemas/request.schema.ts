@@ -25,6 +25,7 @@ export const createRequestSchema = z.object({
 
 export const createManualRequestSchema = z.object({
   jobAdId: z.string().uuid(),
+  companyId: z.string().uuid().optional(),
   cvUrl: z.string().optional(),
   applicant: applicantSchema,
   qualifications: z.array(qualificationSchema).default([]),

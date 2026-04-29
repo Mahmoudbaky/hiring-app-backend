@@ -1,6 +1,6 @@
 import type { Request, Response } from "express";
 import { requestService } from "../services/request.service.js";
-import { NotFoundError, ForbiddenError } from "../utils/index.js";
+import { NotFoundError, ForbiddenError, BadRequestError } from "../utils/index.js";
 import { sendSuccess, sendCreated } from "../utils/response.js";
 import type {
   CreateRequestInput,
@@ -14,15 +14,18 @@ export async function submit(req: Request, res: Response): Promise<void> {
 
 export async function submitManual(req: Request, res: Response): Promise<void> {
   const user = req.user!;
-  if (!user.hiringCompanyId) throw new ForbiddenError("User is not associated with a company");
-  sendCreated(
-    res,
-    await requestService.submitManual(
-      req.body as CreateManualRequestInput,
-      user.id,
-      user.hiringCompanyId
-    )
-  );
+  const data = req.body as CreateManualRequestInput;
+
+  let companyId: string;
+  if (user.role === "super_admin") {
+    if (!data.companyId) throw new BadRequestError("companyId is required for super_admin");
+    companyId = data.companyId;
+  } else {
+    if (!user.hiringCompanyId) throw new ForbiddenError("User is not associated with a company");
+    companyId = user.hiringCompanyId;
+  }
+
+  sendCreated(res, await requestService.submitManual(data, user.id, companyId));
 }
 
 export async function list(req: Request, res: Response): Promise<void> {
