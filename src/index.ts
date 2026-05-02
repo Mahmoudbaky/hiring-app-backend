@@ -20,6 +20,7 @@ import requestsRouter from "./routes/requests.routes.js";
 import settingsRouter from "./routes/settings.routes.js";
 import applicantsRouter from "./routes/applicants.routes.js";
 import uploadRouter from "./routes/upload.routes.js";
+import registerRouter from "./routes/register.routes.js";
 
 const app: Express = express();
 const PORT = process.env.PORT ?? 3000;
@@ -64,6 +65,7 @@ app.use("/api/requests", requestsRouter);
 app.use("/api/settings", settingsRouter);
 app.use("/api/applicants", applicantsRouter);
 app.use("/api/upload", uploadRouter);
+app.use("/api/register-company", registerRouter);
 
 /**
  * @swagger

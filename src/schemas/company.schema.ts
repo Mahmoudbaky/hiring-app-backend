@@ -20,3 +20,18 @@ export const updateCompanySchema = z.object({
 
 export type CreateCompanyInput = z.infer<typeof createCompanySchema>;
 export type UpdateCompanyInput = z.infer<typeof updateCompanySchema>;
+
+export const registerCompanySchema = z.object({
+  // Company info
+  companyName: z.string().min(1),
+  phoneNumber: z.string().optional(),
+  address: z.string().optional(),
+  managerName: z.string().optional(),
+  companyRecord: z.string().optional(),
+  // First user info
+  name: z.string().min(1),
+  email: z.string().email(),
+  password: z.string().min(8),
+});
+
+export type RegisterCompanyInput = z.infer<typeof registerCompanySchema>;

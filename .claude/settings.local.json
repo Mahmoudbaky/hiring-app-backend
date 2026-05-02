@@ -6,7 +6,8 @@
       "Bash(pnpm run *)",
       "Bash(xargs ls *)",
       "Bash(pnpm seed:settings)",
-      "Bash(pnpm dlx *)"
+      "Bash(pnpm dlx *)",
+      "PowerShell(Head -50)"
     ]
   }
 }
