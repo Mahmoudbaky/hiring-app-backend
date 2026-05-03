@@ -26,6 +26,14 @@ export async function create(req: Request, res: Response): Promise<void> {
   sendCreated(res, await companyService.create(req.body as CreateCompanyInput));
 }
 
+export async function updateMine(req: Request, res: Response): Promise<void> {
+  const companyId = req.user?.hiringCompanyId;
+  if (!companyId) throw new BadRequestError("No company associated with this account");
+  const company = await companyService.update(companyId, req.body as UpdateCompanyInput);
+  if (!company) throw new NotFoundError("Company not found");
+  sendSuccess(res, company, "تم تحديث بيانات الشركة بنجاح");
+}
+
 export async function update(req: Request, res: Response): Promise<void> {
   const company = await companyService.update(
     req.params.id as string,

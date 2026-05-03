@@ -34,6 +34,7 @@ router.get("/", requireAuth, requireRole("super_admin"), companyController.list)
  *       - bearerAuth: []
  */
 router.get("/mine", requireAuth, companyController.getMyCompany);
+router.patch("/mine", requireAuth, validate(updateCompanySchema), companyController.updateMine);
 
 /**
  * @swagger

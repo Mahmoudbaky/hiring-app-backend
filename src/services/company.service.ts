@@ -24,6 +24,10 @@ export const companyService = {
     return company;
   },
 
+  async updateMine(id: string, data: UpdateCompanyInput) {
+    return this.update(id, data);
+  },
+
   async update(id: string, data: UpdateCompanyInput) {
     const [company] = await db
       .update(hiringCompanies)

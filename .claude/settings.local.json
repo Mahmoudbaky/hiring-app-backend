@@ -7,7 +7,12 @@
       "Bash(xargs ls *)",
       "Bash(pnpm seed:settings)",
       "Bash(pnpm dlx *)",
-      "PowerShell(Head -50)"
+      "PowerShell(Head -50)",
+      "Bash(pnpm db:push)",
+      "Bash(node --import tsx/esm scripts/add-logo-column.ts)",
+      "Bash(node --input-type=module --eval 'import { auth } from '\\\\''./src/lib/auth.js'\\\\''; const ctx = await auth.$context; console.log\\(Object.keys\\(ctx\\)\\); console.log\\(typeof ctx.password\\);')",
+      "Bash(node --import tsx/esm --input-type=module --eval 'import { auth } from '\\\\''./src/lib/auth.ts'\\\\''; const ctx = await auth.$context; console.log\\(typeof ctx.password\\); console.log\\(Object.keys\\(ctx.password\\)\\);')",
+      "Bash(node --import tsx/esm --input-type=module --eval ' *)"
     ]
   }
 }

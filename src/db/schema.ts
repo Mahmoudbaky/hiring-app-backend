@@ -49,7 +49,8 @@ export const hiringCompanies = pgTable("hiring_companies", {
   phoneNumber: varchar("phone_number", { length: 20 }),
   address: text("address"),
   managerName: varchar("manager_name", { length: 255 }),
-  companyRecord: text("company_record"), // stored file URL/path
+  companyRecord: text("company_record"),
+  logo: text("logo"), // Cloudinary URL
   isAdminCompany: boolean("is_admin_company").default(false).notNull(),
   isActive: boolean("is_active").default(true).notNull(),
   createdAt: timestamp("created_at").defaultNow().notNull(),

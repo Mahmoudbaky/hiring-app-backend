@@ -15,6 +15,7 @@ export const updateCompanySchema = z.object({
   address: z.string().optional(),
   managerName: z.string().optional(),
   companyRecord: z.string().optional(),
+  logo: z.string().url().nullish(),
   isActive: z.boolean().optional(),
 });
 
