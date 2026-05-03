@@ -14,6 +14,7 @@ export const auth = betterAuth({
         sameSite: "Lax",
         secure: true,
         httpOnly: true,
+        partitioned: true,
       },
     }),
   },
