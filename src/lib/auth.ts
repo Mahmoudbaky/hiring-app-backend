@@ -11,7 +11,7 @@ export const auth = betterAuth({
     crossSubDomainCookies: { enabled: false },
     ...(process.env.NODE_ENV === "production" && {
       defaultCookieAttributes: {
-        sameSite: "none",
+        sameSite: "Lax",
         secure: true,
         httpOnly: true,
       },
