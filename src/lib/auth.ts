@@ -14,7 +14,7 @@ export const auth = betterAuth({
         sameSite: "None",
         secure: true,
         httpOnly: true,
-        partitioned: true,
+        partitioned: true, // this is for mobile login fix
       },
     }),
   },
