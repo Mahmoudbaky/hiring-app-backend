@@ -8,7 +8,6 @@ import {
   timestamp,
   integer,
   date,
-  unique,
 } from "drizzle-orm/pg-core";
 
 // ─────────────────────────────────────────────
@@ -119,6 +118,37 @@ export const verifications = pgTable("verification", {
 });
 
 // ─────────────────────────────────────────────
+// Departments / Professional Grades / General Specialties
+// ─────────────────────────────────────────────
+
+export const departments = pgTable("departments", {
+  id: uuid("id").primaryKey().defaultRandom(),
+  name: varchar("name", { length: 255 }).notNull(),
+  isActive: boolean("is_active").default(true).notNull(),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+});
+
+export const professionalGrades = pgTable("professional_grades", {
+  id: uuid("id").primaryKey().defaultRandom(),
+  name: varchar("name", { length: 255 }).notNull(),
+  departmentId: uuid("department_id")
+    .notNull()
+    .references(() => departments.id, { onDelete: "cascade" }),
+  isActive: boolean("is_active").default(true).notNull(),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+});
+
+export const generalSpecialties = pgTable("general_specialties", {
+  id: uuid("id").primaryKey().defaultRandom(),
+  name: varchar("name", { length: 255 }).notNull(),
+  departmentId: uuid("department_id")
+    .notNull()
+    .references(() => departments.id, { onDelete: "cascade" }),
+  isActive: boolean("is_active").default(true).notNull(),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+});
+
+// ─────────────────────────────────────────────
 // Settings (managed by super admin)
 // ─────────────────────────────────────────────
 
@@ -169,6 +199,7 @@ export const applicants = pgTable("applicants", {
   phone: varchar("phone", { length: 20 }).notNull().unique(),
   gender: genderEnum("gender"),
   dateOfBirth: date("date_of_birth"),
+  nationality: varchar("nationality", { length: 100 }),
   currentJobLocation: varchar("current_job_location", { length: 255 }),
   createdAt: timestamp("created_at").defaultNow().notNull(),
 });
@@ -201,9 +232,7 @@ export const jobRequests = pgTable(
     applicantId: uuid("applicant_id")
       .notNull()
       .references(() => applicants.id),
-    jobAdId: uuid("job_ad_id")
-      .notNull()
-      .references(() => jobAds.id),
+    jobAdId: uuid("job_ad_id").references(() => jobAds.id),
     hiringCompanyId: uuid("hiring_company_id")
       .notNull()
       .references(() => hiringCompanies.id),
@@ -215,11 +244,14 @@ export const jobRequests = pgTable(
     // populated only when submissionType = 'manual'
     submittedByUserId: text("submitted_by_user_id").references(() => users.id),
     notes: text("notes"),
+    // job-profile fields (department / grade / specialty cascade)
+    departmentId: uuid("department_id").references(() => departments.id),
+    professionalGradeId: uuid("professional_grade_id").references(() => professionalGrades.id),
+    generalSpecialtyId: uuid("general_specialty_id").references(() => generalSpecialties.id),
+    yearsOfExperience: varchar("years_of_experience", { length: 50 }),
+    additionalInfo: text("additional_info"),
     createdAt: timestamp("created_at").defaultNow().notNull(),
     updatedAt: timestamp("updated_at").defaultNow().notNull(),
   },
-  (table) => [
-    // one applicant can only apply to a given job once, regardless of which company code they used
-    unique().on(table.applicantId, table.jobAdId),
-  ]
+  () => []
 );

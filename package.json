@@ -16,7 +16,8 @@
     "db:migrate": "drizzle-kit migrate",
     "db:studio": "drizzle-kit studio",
     "seed:admin": "tsx src/scripts/seed-admin.ts",
-    "seed:settings": "tsx src/scripts/seed-settings.ts"
+    "seed:settings": "tsx src/scripts/seed-settings.ts",
+    "seed:medicine": "tsx src/scripts/seed-medicine.ts"
   },
   "dependencies": {
     "@better-auth/infra": "^0.2.5",

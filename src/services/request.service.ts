@@ -7,8 +7,11 @@ import {
   jobAds,
   jobRequests,
   qualificationTypeSettings,
+  departments,
+  professionalGrades,
+  generalSpecialties,
 } from "../db/schema.js";
-import { BadRequestError, NotFoundError, ConflictError, ForbiddenError } from "../utils/index.js";
+import { BadRequestError, NotFoundError, ForbiddenError } from "../utils/index.js";
 import type {
   CreateRequestInput,
   CreateManualRequestInput,
@@ -23,6 +26,7 @@ async function upsertApplicant(data: {
   phone: string;
   gender?: string;
   dateOfBirth?: string;
+  nationality?: string;
   currentJobLocation?: string;
 }) {
   const [existing] = await db
@@ -40,6 +44,7 @@ async function upsertApplicant(data: {
       phone: data.phone,
       gender: data.gender as "male" | "female" | undefined,
       dateOfBirth: data.dateOfBirth,
+      nationality: data.nationality,
       currentJobLocation: data.currentJobLocation,
     })
     .returning();
@@ -102,24 +107,7 @@ export const requestService = {
       );
     if (!company) throw new BadRequestError("Invalid company code");
 
-    const [job] = await db
-      .select()
-      .from(jobAds)
-      .where(and(eq(jobAds.id, data.jobAdId), eq(jobAds.isPublished, true)));
-    if (!job) throw new NotFoundError("Job not found or not open");
-
     const { record: applicantRecord, isNew } = await upsertApplicant(data.applicant);
-
-    const [duplicate] = await db
-      .select({ id: jobRequests.id })
-      .from(jobRequests)
-      .where(
-        and(
-          eq(jobRequests.applicantId, applicantRecord.id),
-          eq(jobRequests.jobAdId, data.jobAdId)
-        )
-      );
-    if (duplicate) throw new ConflictError("Already applied for this job");
 
     if (isNew) await insertQualifications(applicantRecord.id, data.qualifications);
 
@@ -132,6 +120,11 @@ export const requestService = {
         cvUrl: data.cvUrl,
         status: "new",
         submissionType: "self",
+        departmentId: data.jobProfile?.departmentId,
+        professionalGradeId: data.jobProfile?.professionalGradeId,
+        generalSpecialtyId: data.jobProfile?.generalSpecialtyId,
+        yearsOfExperience: data.jobProfile?.yearsOfExperience,
+        additionalInfo: data.jobProfile?.additionalInfo,
       })
       .returning();
 
@@ -143,25 +136,7 @@ export const requestService = {
     userId: string,
     companyId: string
   ) {
-    const [job] = await db
-      .select()
-      .from(jobAds)
-      .where(and(eq(jobAds.id, data.jobAdId), eq(jobAds.isPublished, true)));
-    if (!job) throw new NotFoundError("Job not found or not open");
-
     const { record: applicantRecord, isNew } = await upsertApplicant(data.applicant);
-
-    const [duplicate] = await db
-      .select({ id: jobRequests.id })
-      .from(jobRequests)
-      .where(
-        and(
-          eq(jobRequests.applicantId, applicantRecord.id),
-          eq(jobRequests.jobAdId, data.jobAdId)
-        )
-      );
-    if (duplicate)
-      throw new ConflictError("This applicant has already applied for this job");
 
     if (isNew) await insertQualifications(applicantRecord.id, data.qualifications);
 
@@ -175,6 +150,11 @@ export const requestService = {
         status: "new",
         submissionType: "manual",
         submittedByUserId: userId,
+        departmentId: data.jobProfile?.departmentId,
+        professionalGradeId: data.jobProfile?.professionalGradeId,
+        generalSpecialtyId: data.jobProfile?.generalSpecialtyId,
+        yearsOfExperience: data.jobProfile?.yearsOfExperience,
+        additionalInfo: data.jobProfile?.additionalInfo,
       })
       .returning();
 
@@ -198,7 +178,7 @@ export const requestService = {
       .select(requestSelectFields)
       .from(jobRequests)
       .innerJoin(applicants, eq(jobRequests.applicantId, applicants.id))
-      .innerJoin(jobAds, eq(jobRequests.jobAdId, jobAds.id))
+      .leftJoin(jobAds, eq(jobRequests.jobAdId, jobAds.id))
       .innerJoin(hiringCompanies, eq(jobRequests.hiringCompanyId, hiringCompanies.id))
       .where(whereCondition)
       .orderBy(desc(jobRequests.createdAt));
@@ -236,6 +216,8 @@ export const requestService = {
         submissionType: jobRequests.submissionType,
         cvUrl: jobRequests.cvUrl,
         notes: jobRequests.notes,
+        yearsOfExperience: jobRequests.yearsOfExperience,
+        additionalInfo: jobRequests.additionalInfo,
         createdAt: jobRequests.createdAt,
         updatedAt: jobRequests.updatedAt,
         applicant: {
@@ -245,6 +227,7 @@ export const requestService = {
           phone: applicants.phone,
           gender: applicants.gender,
           dateOfBirth: applicants.dateOfBirth,
+          nationality: applicants.nationality,
           currentJobLocation: applicants.currentJobLocation,
         },
         jobAd: {
@@ -255,11 +238,26 @@ export const requestService = {
           id: hiringCompanies.id,
           companyName: hiringCompanies.companyName,
         },
+        department: {
+          id: departments.id,
+          name: departments.name,
+        },
+        professionalGrade: {
+          id: professionalGrades.id,
+          name: professionalGrades.name,
+        },
+        generalSpecialty: {
+          id: generalSpecialties.id,
+          name: generalSpecialties.name,
+        },
       })
       .from(jobRequests)
       .innerJoin(applicants, eq(jobRequests.applicantId, applicants.id))
-      .innerJoin(jobAds, eq(jobRequests.jobAdId, jobAds.id))
+      .leftJoin(jobAds, eq(jobRequests.jobAdId, jobAds.id))
       .innerJoin(hiringCompanies, eq(jobRequests.hiringCompanyId, hiringCompanies.id))
+      .leftJoin(departments, eq(jobRequests.departmentId, departments.id))
+      .leftJoin(professionalGrades, eq(jobRequests.professionalGradeId, professionalGrades.id))
+      .leftJoin(generalSpecialties, eq(jobRequests.generalSpecialtyId, generalSpecialties.id))
       .where(eq(jobRequests.id, id));
 
     if (!request) throw new NotFoundError("Request not found");
