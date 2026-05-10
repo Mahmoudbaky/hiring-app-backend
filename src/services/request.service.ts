@@ -1,4 +1,4 @@
-import { and, desc, eq } from "drizzle-orm";
+import { and, count, desc, eq } from "drizzle-orm";
 import { db } from "../db/index.js";
 import {
   applicants,
@@ -111,6 +111,11 @@ export const requestService = {
 
     if (isNew) await insertQualifications(applicantRecord.id, data.qualifications);
 
+    const [{ total }] = await db.select({ total: count() }).from(jobRequests);
+    const year = new Date().getFullYear();
+    const seq = (Number(total) + 1).toString().padStart(5, "0");
+    const referenceNumber = `CV-${year}-${seq}`;
+
     const [request] = await db
       .insert(jobRequests)
       .values({
@@ -120,6 +125,7 @@ export const requestService = {
         cvUrl: data.cvUrl,
         status: "new",
         submissionType: "self",
+        referenceNumber,
         departmentId: data.jobProfile?.departmentId,
         professionalGradeId: data.jobProfile?.professionalGradeId,
         generalSpecialtyId: data.jobProfile?.generalSpecialtyId,

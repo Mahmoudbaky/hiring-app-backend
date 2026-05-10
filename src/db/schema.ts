@@ -248,6 +248,7 @@ export const jobRequests = pgTable(
     departmentId: uuid("department_id").references(() => departments.id),
     professionalGradeId: uuid("professional_grade_id").references(() => professionalGrades.id),
     generalSpecialtyId: uuid("general_specialty_id").references(() => generalSpecialties.id),
+    referenceNumber: varchar("reference_number", { length: 20 }),
     yearsOfExperience: varchar("years_of_experience", { length: 50 }),
     additionalInfo: text("additional_info"),
     createdAt: timestamp("created_at").defaultNow().notNull(),
