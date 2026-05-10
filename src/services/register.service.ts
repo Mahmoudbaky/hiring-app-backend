@@ -4,6 +4,7 @@ import { hiringCompanies, users } from "../db/schema.js";
 import { auth } from "../lib/auth.js";
 import { ConflictError } from "../utils/errors.js";
 import type { RegisterCompanyInput } from "../schemas/company.schema.js";
+import { sendWelcomeEmail } from "../utils/mailer.js";
 
 const CODE_CHARS = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789"; // no 0/O/1/I to avoid confusion
 
@@ -61,6 +62,14 @@ export async function registerCompany(data: RegisterCompanyInput) {
         hiringCompanyId: users.hiringCompanyId,
         createdAt: users.createdAt,
       });
+
+    // Fire welcome email — non-blocking, failure doesn't break registration
+    sendWelcomeEmail({
+      to: email,
+      userName: name,
+      companyName,
+      uniqueCode: company.uniqueCode,
+    }).catch((mailErr) => console.error("[mailer] welcome email failed:", mailErr));
 
     return { company, user };
   } catch (err) {
