@@ -73,6 +73,7 @@ const requestSelectFields = {
   cvUrl: jobRequests.cvUrl,
   notes: jobRequests.notes,
   isViewedByAdmin: jobRequests.isViewedByAdmin,
+  referenceNumber: jobRequests.referenceNumber,
   yearsOfExperience: jobRequests.yearsOfExperience,
   createdAt: jobRequests.createdAt,
   updatedAt: jobRequests.updatedAt,
