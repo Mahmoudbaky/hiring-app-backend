@@ -269,6 +269,7 @@ export const jobRequests = pgTable(
     referenceNumber: varchar("reference_number", { length: 20 }),
     yearsOfExperience: varchar("years_of_experience", { length: 50 }),
     additionalInfo: text("additional_info"),
+    isViewedByAdmin: boolean("is_viewed_by_admin").default(false).notNull(),
     createdAt: timestamp("created_at").defaultNow().notNull(),
     updatedAt: timestamp("updated_at").defaultNow().notNull(),
   },

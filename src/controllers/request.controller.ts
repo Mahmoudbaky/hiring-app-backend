@@ -52,6 +52,12 @@ export async function getById(req: Request, res: Response): Promise<void> {
   );
 }
 
+export async function markViewed(req: Request, res: Response): Promise<void> {
+  const updated = await requestService.markViewedByAdmin(req.params.id as string);
+  if (!updated) throw new NotFoundError("Request not found");
+  sendSuccess(res, updated);
+}
+
 export async function updateStatus(req: Request, res: Response): Promise<void> {
   const user = req.user!;
   const updated = await requestService.updateStatus(

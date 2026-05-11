@@ -72,6 +72,7 @@ const requestSelectFields = {
   submissionType: jobRequests.submissionType,
   cvUrl: jobRequests.cvUrl,
   notes: jobRequests.notes,
+  isViewedByAdmin: jobRequests.isViewedByAdmin,
   createdAt: jobRequests.createdAt,
   updatedAt: jobRequests.updatedAt,
   applicant: {
@@ -285,5 +286,14 @@ export const requestService = {
       .where(eq(academicQualifications.applicantId, request.applicant.id));
 
     return { ...request, qualifications };
+  },
+
+  async markViewedByAdmin(id: string) {
+    const [updated] = await db
+      .update(jobRequests)
+      .set({ isViewedByAdmin: true })
+      .where(eq(jobRequests.id, id))
+      .returning({ id: jobRequests.id });
+    return updated ?? null;
   },
 };

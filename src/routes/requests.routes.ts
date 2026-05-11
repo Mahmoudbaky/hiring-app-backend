@@ -94,6 +94,13 @@ router.get("/:id", requireAuth, requestController.getById);
  *               notes: { type: string }
  */
 router.patch(
+  "/:id/view",
+  requireAuth,
+  requireRole("super_admin"),
+  requestController.markViewed
+);
+
+router.patch(
   "/:id/status",
   requireAuth,
   validate(updateRequestStatusSchema),
