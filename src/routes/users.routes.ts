@@ -69,4 +69,11 @@ router.patch(
   userController.update
 );
 
+router.delete(
+  "/:id",
+  requireAuth,
+  requireRole("super_admin"),
+  userController.remove
+);
+
 export default router;

@@ -68,6 +68,7 @@ export const users = pgTable("user", {
   emailVerified: boolean("email_verified").notNull(),
   image: text("image"),
   phoneNumber: varchar("phone_number", { length: 30 }),
+  isFrozen: boolean("is_frozen").default(false).notNull(),
   role: userRoleEnum("role").default("company_user").notNull(),
   hiringCompanyId: uuid("hiring_company_id").references(
     () => hiringCompanies.id

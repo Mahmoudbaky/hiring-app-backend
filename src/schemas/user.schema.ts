@@ -11,6 +11,7 @@ export const createUserSchema = z.object({
 export const updateUserSchema = z.object({
   name: z.string().min(1).optional(),
   phoneNumber: z.string().nullish(),
+  isFrozen: z.boolean().optional(),
   hiringCompanyId: z.string().uuid().nullish(),
 });
 

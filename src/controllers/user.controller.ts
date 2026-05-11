@@ -26,3 +26,9 @@ export async function update(req: Request, res: Response): Promise<void> {
   if (!user) throw new NotFoundError("User not found");
   sendSuccess(res, user);
 }
+
+export async function remove(req: Request, res: Response): Promise<void> {
+  const deleted = await userService.remove(req.params.id as string);
+  if (!deleted) throw new NotFoundError("User not found");
+  sendSuccess(res, null, "تم حذف المستخدم بنجاح");
+}

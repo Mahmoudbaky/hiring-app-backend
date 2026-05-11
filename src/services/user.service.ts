@@ -9,6 +9,7 @@ const userFields = {
   name: users.name,
   email: users.email,
   phoneNumber: users.phoneNumber,
+  isFrozen: users.isFrozen,
   role: users.role,
   hiringCompanyId: users.hiringCompanyId,
   createdAt: users.createdAt,
@@ -49,5 +50,10 @@ export const userService = {
       .where(eq(users.id, id))
       .returning(userFields);
     return updated ?? null;
+  },
+
+  async remove(id: string) {
+    const [deleted] = await db.delete(users).where(eq(users.id, id)).returning({ id: users.id });
+    return deleted ?? null;
   },
 };

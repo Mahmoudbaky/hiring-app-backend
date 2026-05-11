@@ -33,7 +33,10 @@ export async function requireAuth(
   const u = session.user as typeof session.user & {
     role?: string;
     hiringCompanyId?: string;
+    isFrozen?: boolean;
   };
+
+  if (u.isFrozen) throw new UnauthorizedError("تم تجميد حسابك");
 
   req.user = {
     id: u.id,
