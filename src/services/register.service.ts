@@ -27,7 +27,7 @@ async function generateUniqueCode(): Promise<string> {
 }
 
 export async function registerCompany(data: RegisterCompanyInput) {
-  const { companyName, phoneNumber, address, managerName, companyRecord, name, email, password } = data;
+  const { companyName, phoneNumber, address, managerName, companyRecord, name, email, password, userPhoneNumber } = data;
 
   const uniqueCode = await generateUniqueCode();
 
@@ -52,12 +52,13 @@ export async function registerCompany(data: RegisterCompanyInput) {
 
     const [user] = await db
       .update(users)
-      .set({ role: "company_user", hiringCompanyId: company.id, updatedAt: new Date() })
+      .set({ role: "company_user", phoneNumber: userPhoneNumber ?? null, hiringCompanyId: company.id, updatedAt: new Date() })
       .where(eq(users.id, authResult.user.id))
       .returning({
         id: users.id,
         name: users.name,
         email: users.email,
+        phoneNumber: users.phoneNumber,
         role: users.role,
         hiringCompanyId: users.hiringCompanyId,
         createdAt: users.createdAt,

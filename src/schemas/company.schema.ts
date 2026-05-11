@@ -33,6 +33,7 @@ export const registerCompanySchema = z.object({
   name: z.string().min(1),
   email: z.string().email(),
   password: z.string().min(8),
+  userPhoneNumber: z.string().optional(),
 });
 
 export type RegisterCompanyInput = z.infer<typeof registerCompanySchema>;

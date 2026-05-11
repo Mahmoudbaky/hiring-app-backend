@@ -8,6 +8,7 @@ const userFields = {
   id: users.id,
   name: users.name,
   email: users.email,
+  phoneNumber: users.phoneNumber,
   role: users.role,
   hiringCompanyId: users.hiringCompanyId,
   createdAt: users.createdAt,
@@ -31,6 +32,7 @@ export const userService = {
       .update(users)
       .set({
         role: "company_user",
+        phoneNumber: data.phoneNumber ?? null,
         hiringCompanyId: data.hiringCompanyId ?? null,
         updatedAt: new Date(),
       })
