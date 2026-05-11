@@ -23,6 +23,7 @@ import uploadRouter from "./routes/upload.routes.js";
 import registerRouter from "./routes/register.routes.js";
 import profileRouter from "./routes/profile.routes.js";
 import contactRouter from "./routes/contact.routes.js";
+import { testConnection } from "./db/index.js";
 
 const app: Express = express();
 const PORT = process.env.PORT ?? 3000;
@@ -90,11 +91,19 @@ app.use(notFoundHandler);
 app.use(errorHandler);
 
 if (!process.env.VERCEL) {
-  app.listen(PORT, () => {
-    logger.info(`Server running on http://localhost:${PORT}`);
-    logger.info(`API docs at http://localhost:${PORT}/api/docs`);
-    logger.info(`Auth endpoints at http://localhost:${PORT}/api/auth`);
-  });
+  (async () => {
+    try {
+      await testConnection();
+      app.listen(PORT, () => {
+        logger.info(`Server running on http://localhost:${PORT}`);
+        logger.info(`API docs at http://localhost:${PORT}/api/docs`);
+        logger.info(`Auth endpoints at http://localhost:${PORT}/api/auth`);
+      });
+    } catch (err) {
+      logger.error(`Database connection failed: ${(err as Error).message}`);
+      process.exit(1);
+    }
+  })();
 }
 
 export default app;
