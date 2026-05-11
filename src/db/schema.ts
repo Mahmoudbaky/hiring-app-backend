@@ -227,6 +227,22 @@ export const academicQualifications = pgTable("academic_qualifications", {
 // Job Requests / Applications
 // ─────────────────────────────────────────────
 
+// ─────────────────────────────────────────────
+// Contact Messages  (public submission, super admin read)
+// ─────────────────────────────────────────────
+
+export const contactMessages = pgTable("contact_messages", {
+  id: uuid("id").primaryKey().defaultRandom(),
+  fullName: varchar("full_name", { length: 255 }).notNull(),
+  email: varchar("email", { length: 255 }).notNull(),
+  phone: varchar("phone", { length: 20 }).notNull(),
+  subject: varchar("subject", { length: 255 }).notNull(),
+  message: text("message").notNull(),
+  isRead: boolean("is_read").default(false).notNull(),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+});
+
+// ─────────────────────────────────────────────
 export const jobRequests = pgTable(
   "job_requests",
   {

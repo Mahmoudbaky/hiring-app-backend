@@ -22,6 +22,7 @@ import applicantsRouter from "./routes/applicants.routes.js";
 import uploadRouter from "./routes/upload.routes.js";
 import registerRouter from "./routes/register.routes.js";
 import profileRouter from "./routes/profile.routes.js";
+import contactRouter from "./routes/contact.routes.js";
 
 const app: Express = express();
 const PORT = process.env.PORT ?? 3000;
@@ -68,6 +69,7 @@ app.use("/api/applicants", applicantsRouter);
 app.use("/api/upload", uploadRouter);
 app.use("/api/register-company", registerRouter);
 app.use("/api/profile", profileRouter);
+app.use("/api/contact", contactRouter);
 
 /**
  * @swagger
