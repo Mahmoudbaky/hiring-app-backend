@@ -34,6 +34,9 @@ router.get("/", requireAuth, requireRole("super_admin"), companyController.list)
  *       - bearerAuth: []
  */
 router.get("/mine", requireAuth, companyController.getMyCompany);
+
+/** Public — no auth — fetch company card info by uniqueCode */
+router.get("/public/:code", companyController.getPublicByCode);
 router.patch("/mine", requireAuth, validate(updateCompanySchema), companyController.updateMine);
 
 /**

@@ -19,7 +19,10 @@
       "PowerShell(Get-ChildItem \"c:\\\\DEV\\\\freelace-projects\\\\hiring-app\\\\hiring-app-frontend\\\\node_modules\\\\@radix-ui\" | Where-Object { $_.Name -match \"popover|command\" } | Select-Object -ExpandProperty Name)",
       "PowerShell(Get-ChildItem -Path \"c:\\\\DEV\\\\freelace-projects\\\\hiring-app\\\\hiring-app-backend\\\\src\" -Force | Select-Object Name, @{Name=\"Type\"; Expression={if\\($_.PSIsContainer\\){\"DIR\"}else{\"FILE\"}}} | Format-Table -AutoSize)",
       "PowerShell(Get-ChildItem -Path \"c:\\\\DEV\\\\freelace-projects\\\\hiring-app\\\\hiring-app-backend\\\\src\\\\services\" -Force | Select-Object Name, @{Name=\"Type\"; Expression={if\\($_.PSIsContainer\\){\"DIR\"}else{\"FILE\"}}} | Format-Table -AutoSize)",
-      "PowerShell(Get-ChildItem -Path \"c:\\\\DEV\\\\freelace-projects\\\\hiring-app\\\\hiring-app-backend\\\\src\\\\utils\" -Force | Select-Object Name, @{Name=\"Type\"; Expression={if\\($_.PSIsContainer\\){\"DIR\"}else{\"FILE\"}}} | Format-Table -AutoSize)"
+      "PowerShell(Get-ChildItem -Path \"c:\\\\DEV\\\\freelace-projects\\\\hiring-app\\\\hiring-app-backend\\\\src\\\\utils\" -Force | Select-Object Name, @{Name=\"Type\"; Expression={if\\($_.PSIsContainer\\){\"DIR\"}else{\"FILE\"}}} | Format-Table -AutoSize)",
+      "Bash(Get-ChildItem -Path 'c:\\\\DEV\\\\freelace-projects\\\\hiring-app\\\\hiring-app-backend\\\\src\\\\routes' -Recurse -File)",
+      "Bash(Select-Object Name, FullName)",
+      "Bash(xargs grep -l \"company\\\\|Company\")"
     ]
   }
 }

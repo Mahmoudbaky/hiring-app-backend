@@ -34,6 +34,13 @@ export async function updateMine(req: Request, res: Response): Promise<void> {
   sendSuccess(res, company, "تم تحديث بيانات الشركة بنجاح");
 }
 
+export async function getPublicByCode(req: Request, res: Response): Promise<void> {
+  const company = await companyService.getByCode(req.params.code as string);
+  if (!company) throw new NotFoundError("Company not found");
+  const { companyName, uniqueCode, logo, phoneNumber, address, managerName } = company;
+  sendSuccess(res, { companyName, uniqueCode, logo, phoneNumber, address, managerName });
+}
+
 export async function update(req: Request, res: Response): Promise<void> {
   const company = await companyService.update(
     req.params.id as string,

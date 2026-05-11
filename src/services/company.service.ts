@@ -16,6 +16,14 @@ export const companyService = {
     return company ?? null;
   },
 
+  async getByCode(code: string) {
+    const [company] = await db
+      .select()
+      .from(hiringCompanies)
+      .where(eq(hiringCompanies.uniqueCode, code));
+    return company ?? null;
+  },
+
   async create(data: CreateCompanyInput) {
     const [company] = await db
       .insert(hiringCompanies)
