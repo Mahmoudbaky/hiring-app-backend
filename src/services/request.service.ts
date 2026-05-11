@@ -1,4 +1,4 @@
-import { and, count, desc, eq } from "drizzle-orm";
+import { and, count, desc, eq, inArray } from "drizzle-orm";
 import { db } from "../db/index.js";
 import {
   applicants,
@@ -73,6 +73,7 @@ const requestSelectFields = {
   cvUrl: jobRequests.cvUrl,
   notes: jobRequests.notes,
   isViewedByAdmin: jobRequests.isViewedByAdmin,
+  yearsOfExperience: jobRequests.yearsOfExperience,
   createdAt: jobRequests.createdAt,
   updatedAt: jobRequests.updatedAt,
   applicant: {
@@ -81,6 +82,7 @@ const requestSelectFields = {
     email: applicants.email,
     phone: applicants.phone,
     gender: applicants.gender,
+    nationality: applicants.nationality,
     currentJobLocation: applicants.currentJobLocation,
   },
   jobAd: {
@@ -90,6 +92,18 @@ const requestSelectFields = {
   company: {
     id: hiringCompanies.id,
     companyName: hiringCompanies.companyName,
+  },
+  department: {
+    id: departments.id,
+    name: departments.name,
+  },
+  professionalGrade: {
+    id: professionalGrades.id,
+    name: professionalGrades.name,
+  },
+  generalSpecialty: {
+    id: generalSpecialties.id,
+    name: generalSpecialties.name,
   },
 };
 
@@ -181,14 +195,48 @@ export const requestService = {
       whereCondition = eq(jobRequests.hiringCompanyId, filterCompanyId);
     }
 
-    return db
+    const rows = await db
       .select(requestSelectFields)
       .from(jobRequests)
       .innerJoin(applicants, eq(jobRequests.applicantId, applicants.id))
       .leftJoin(jobAds, eq(jobRequests.jobAdId, jobAds.id))
       .innerJoin(hiringCompanies, eq(jobRequests.hiringCompanyId, hiringCompanies.id))
+      .leftJoin(departments, eq(jobRequests.departmentId, departments.id))
+      .leftJoin(professionalGrades, eq(jobRequests.professionalGradeId, professionalGrades.id))
+      .leftJoin(generalSpecialties, eq(jobRequests.generalSpecialtyId, generalSpecialties.id))
       .where(whereCondition)
       .orderBy(desc(jobRequests.createdAt));
+
+    if (!rows.length) return [];
+
+    const applicantIds = [...new Set(rows.map((r) => r.applicant.id))];
+    const quals = await db
+      .select({
+        applicantId: academicQualifications.applicantId,
+        typeId: qualificationTypeSettings.id,
+        typeName: qualificationTypeSettings.name,
+      })
+      .from(academicQualifications)
+      .leftJoin(
+        qualificationTypeSettings,
+        eq(academicQualifications.qualificationTypeId, qualificationTypeSettings.id)
+      )
+      .where(inArray(academicQualifications.applicantId, applicantIds));
+
+    const qualMap = new Map<string, { id: string; name: string }[]>();
+    for (const q of quals) {
+      if (!q.typeId || !q.typeName) continue;
+      if (!qualMap.has(q.applicantId)) qualMap.set(q.applicantId, []);
+      qualMap.get(q.applicantId)!.push({ id: q.typeId, name: q.typeName });
+    }
+
+    return rows.map((r) => ({
+      ...r,
+      department: r.department?.id ? { id: r.department.id, name: r.department.name } : null,
+      professionalGrade: r.professionalGrade?.id ? { id: r.professionalGrade.id, name: r.professionalGrade.name } : null,
+      generalSpecialty: r.generalSpecialty?.id ? { id: r.generalSpecialty.id, name: r.generalSpecialty.name } : null,
+      qualifications: qualMap.get(r.applicant.id) ?? [],
+    }));
   },
 
   async updateStatus(
