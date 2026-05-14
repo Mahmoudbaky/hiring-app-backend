@@ -1,4 +1,4 @@
-import { eq } from "drizzle-orm";
+import { count, eq } from "drizzle-orm";
 import { db } from "../db/index.js";
 import { hiringCompanies, users } from "../db/schema.js";
 import { auth } from "../lib/auth.js";
@@ -6,24 +6,10 @@ import { ConflictError } from "../utils/errors.js";
 import type { RegisterCompanyInput } from "../schemas/company.schema.js";
 import { sendWelcomeEmail } from "../utils/mailer.js";
 
-const CODE_CHARS = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789"; // no 0/O/1/I to avoid confusion
-
-function randomCode(): string {
-  return Array.from({ length: 4 }, () =>
-    CODE_CHARS[Math.floor(Math.random() * CODE_CHARS.length)]
-  ).join("");
-}
-
 async function generateUniqueCode(): Promise<string> {
-  for (let i = 0; i < 10; i++) {
-    const code = randomCode();
-    const [existing] = await db
-      .select({ id: hiringCompanies.id })
-      .from(hiringCompanies)
-      .where(eq(hiringCompanies.uniqueCode, code));
-    if (!existing) return code;
-  }
-  throw new Error("Failed to generate a unique company code — try again");
+  const [{ total }] = await db.select({ total: count() }).from(hiringCompanies);
+  const seq = (Number(total) + 1).toString().padStart(3, "0");
+  return `AG${seq}`;
 }
 
 export async function registerCompany(data: RegisterCompanyInput) {

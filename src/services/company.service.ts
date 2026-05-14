@@ -1,4 +1,4 @@
-import { eq } from "drizzle-orm";
+import { count, eq } from "drizzle-orm";
 import { db } from "../db/index.js";
 import { hiringCompanies } from "../db/schema.js";
 import type { CreateCompanyInput, UpdateCompanyInput } from "../schemas/company.schema.js";
@@ -25,9 +25,13 @@ export const companyService = {
   },
 
   async create(data: CreateCompanyInput) {
+    const [{ total }] = await db.select({ total: count() }).from(hiringCompanies);
+    const seq = (Number(total) + 1).toString().padStart(3, "0");
+    const uniqueCode = `AG${seq}`;
+
     const [company] = await db
       .insert(hiringCompanies)
-      .values(data)
+      .values({ ...data, uniqueCode })
       .returning();
     return company;
   },

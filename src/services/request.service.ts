@@ -128,9 +128,8 @@ export const requestService = {
     if (isNew) await insertQualifications(applicantRecord.id, data.qualifications);
 
     const [{ total }] = await db.select({ total: count() }).from(jobRequests);
-    const year = new Date().getFullYear();
     const seq = (Number(total) + 1).toString().padStart(5, "0");
-    const referenceNumber = `CV-${year}-${seq}`;
+    const referenceNumber = `CV-${seq}`;
 
     const [request] = await db
       .insert(jobRequests)
@@ -162,6 +161,10 @@ export const requestService = {
 
     if (isNew) await insertQualifications(applicantRecord.id, data.qualifications);
 
+    const [{ total: manualTotal }] = await db.select({ total: count() }).from(jobRequests);
+    const manualSeq = (Number(manualTotal) + 1).toString().padStart(5, "0");
+    const referenceNumber = `CV-${manualSeq}`;
+
     const [request] = await db
       .insert(jobRequests)
       .values({
@@ -172,6 +175,7 @@ export const requestService = {
         status: "new",
         submissionType: "manual",
         submittedByUserId: userId,
+        referenceNumber,
         departmentId: data.jobProfile?.departmentId,
         professionalGradeId: data.jobProfile?.professionalGradeId,
         generalSpecialtyId: data.jobProfile?.generalSpecialtyId,
