@@ -23,7 +23,10 @@
       "Bash(Get-ChildItem -Path 'c:\\\\DEV\\\\freelace-projects\\\\hiring-app\\\\hiring-app-backend\\\\src\\\\routes' -Recurse -File)",
       "Bash(Select-Object Name, FullName)",
       "Bash(xargs grep -l \"company\\\\|Company\")",
-      "Bash(npx tsc *)"
+      "Bash(npx tsc *)",
+      "Bash(Get-ChildItem -Recurse \"c:\\\\DEV\\\\freelace-projects\\\\hiring-app\\\\hiring-app-frontend\\\\src\" -Include \"*.tsx\",\"*.ts\")",
+      "Bash(Select-Object FullName)",
+      "Bash(Sort-Object FullName)"
     ]
   }
 }
