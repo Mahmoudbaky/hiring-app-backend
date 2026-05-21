@@ -1,6 +1,9 @@
 import type { Request, Response, NextFunction } from "express";
 import { fromNodeHeaders } from "better-auth/node";
+import { eq } from "drizzle-orm";
 import { auth } from "../lib/auth.js";
+import { db } from "../db/index.js";
+import { hiringCompanies } from "../db/schema.js";
 import { UnauthorizedError, ForbiddenError } from "../utils/index.js";
 
 export type AuthUser = {
@@ -38,12 +41,25 @@ export async function requireAuth(
 
   if (u.isFrozen) throw new UnauthorizedError("تم تجميد حسابك");
 
+  const role = (u.role as AuthUser["role"]) ?? "company_user";
+  const hiringCompanyId = u.hiringCompanyId ?? null;
+
+  if (role === "company_user" && hiringCompanyId) {
+    const [company] = await db
+      .select({ isActive: hiringCompanies.isActive })
+      .from(hiringCompanies)
+      .where(eq(hiringCompanies.id, hiringCompanyId));
+    if (company && !company.isActive) {
+      throw new ForbiddenError("تم تجميد شركتك، يرجى التواصل مع المسؤول");
+    }
+  }
+
   req.user = {
     id: u.id,
     name: u.name,
     email: u.email,
-    role: (u.role as AuthUser["role"]) ?? "company_user",
-    hiringCompanyId: u.hiringCompanyId ?? null,
+    role,
+    hiringCompanyId,
   };
 
   next();

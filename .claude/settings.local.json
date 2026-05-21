@@ -26,7 +26,8 @@
       "Bash(npx tsc *)",
       "Bash(Get-ChildItem -Recurse \"c:\\\\DEV\\\\freelace-projects\\\\hiring-app\\\\hiring-app-frontend\\\\src\" -Include \"*.tsx\",\"*.ts\")",
       "Bash(Select-Object FullName)",
-      "Bash(Sort-Object FullName)"
+      "Bash(Sort-Object FullName)",
+      "Bash(node -e \"const p = require\\('./package.json'\\); console.log\\(p.dependencies['better-auth']\\)\")"
     ]
   }
 }
