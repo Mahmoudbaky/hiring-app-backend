@@ -23,6 +23,7 @@ import uploadRouter from "./routes/upload.routes.js";
 import registerRouter from "./routes/register.routes.js";
 import profileRouter from "./routes/profile.routes.js";
 import contactRouter from "./routes/contact.routes.js";
+import dashboardRouter from "./routes/dashboard.routes.js";
 import { testConnection } from "./db/index.js";
 
 const app: Express = express();
@@ -71,6 +72,7 @@ app.use("/api/upload", uploadRouter);
 app.use("/api/register-company", registerRouter);
 app.use("/api/profile", profileRouter);
 app.use("/api/contact", contactRouter);
+app.use("/api/dashboard", dashboardRouter);
 
 /**
  * @swagger
