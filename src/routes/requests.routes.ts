@@ -78,7 +78,7 @@ router.get("/:id", requireAuth, requestController.getById);
  * @swagger
  * /api/requests/{id}/status:
  *   patch:
- *     summary: Update request status (super admin only)
+ *     summary: Update request status — super_admin only; company users can only view status
  *     tags: [Requests]
  *     security:
  *       - bearerAuth: []
@@ -103,6 +103,7 @@ router.patch(
 router.patch(
   "/:id/status",
   requireAuth,
+  requireRole("super_admin"),
   validate(updateRequestStatusSchema),
   requestController.updateStatus
 );
