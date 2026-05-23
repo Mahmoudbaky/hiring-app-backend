@@ -31,7 +31,7 @@ export const companyService = {
 
     const [company] = await db
       .insert(hiringCompanies)
-      .values({ ...data, uniqueCode })
+      .values({ ...data, uniqueCode, isConfirmed: true })
       .returning();
     return company;
   },

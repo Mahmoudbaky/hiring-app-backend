@@ -4,7 +4,7 @@ import { hiringCompanies, users } from "../db/schema.js";
 import { auth } from "../lib/auth.js";
 import { ConflictError } from "../utils/errors.js";
 import type { RegisterCompanyInput } from "../schemas/company.schema.js";
-import { sendWelcomeEmail } from "../utils/mailer.js";
+import { sendOtp } from "./otp.service.js";
 
 async function generateUniqueCode(): Promise<string> {
   const [{ total }] = await db.select({ total: count() }).from(hiringCompanies);
@@ -50,13 +50,8 @@ export async function registerCompany(data: RegisterCompanyInput) {
         createdAt: users.createdAt,
       });
 
-    // Fire welcome email — non-blocking, failure doesn't break registration
-    sendWelcomeEmail({
-      to: email,
-      userName: name,
-      companyName,
-      uniqueCode: company.uniqueCode,
-    }).catch((mailErr) => console.error("[mailer] welcome email failed:", mailErr));
+    // Send OTP to verify company email — non-blocking, user can resend from verify page
+    sendOtp(email).catch((mailErr) => console.error("[mailer] OTP email failed:", mailErr));
 
     return { company, user };
   } catch (err) {

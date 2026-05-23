@@ -33,6 +33,7 @@ async function main() {
           companyName: ADMIN_COMPANY_NAME,
           uniqueCode: ADMIN_COMPANY_CODE,
           isAdminCompany: true,
+          isConfirmed: true,
         })
         .returning()
     )[0];

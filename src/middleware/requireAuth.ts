@@ -46,9 +46,12 @@ export async function requireAuth(
 
   if (role === "company_user" && hiringCompanyId) {
     const [company] = await db
-      .select({ isActive: hiringCompanies.isActive })
+      .select({ isActive: hiringCompanies.isActive, isConfirmed: hiringCompanies.isConfirmed })
       .from(hiringCompanies)
       .where(eq(hiringCompanies.id, hiringCompanyId));
+    if (company && !company.isConfirmed) {
+      throw new ForbiddenError("لم يتم تأكيد بريد الشركة بعد، يرجى التحقق من بريدك الإلكتروني");
+    }
     if (company && !company.isActive) {
       throw new ForbiddenError("تم تجميد شركتك، يرجى التواصل مع المسؤول");
     }
