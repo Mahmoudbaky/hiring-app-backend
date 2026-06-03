@@ -11,4 +11,11 @@ router.get(
   dashboardController.getSummary
 );
 
+router.get(
+  "/company",
+  requireAuth,
+  requireRole("company_user"),
+  dashboardController.getCompanySummary
+);
+
 export default router;
