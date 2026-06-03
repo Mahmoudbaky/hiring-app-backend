@@ -102,9 +102,10 @@ router.delete(
 
 // ── Professional Grades ───────────────────────────────────────────────────────
 
-/** Public — filtered by ?departmentId=uuid */
+/** Public — active only, filtered by ?departmentId=uuid */
 router.get("/professional-grades/public", settingsController.listProfessionalGrades);
-router.get("/professional-grades", requireAuth, settingsController.listProfessionalGrades);
+/** Admin — all items including inactive */
+router.get("/professional-grades", requireAuth, settingsController.listAllProfessionalGrades);
 router.post(
   "/professional-grades",
   requireAuth,
@@ -128,9 +129,10 @@ router.delete(
 
 // ── General Specialties ───────────────────────────────────────────────────────
 
-/** Public — filtered by ?departmentId=uuid */
+/** Public — active only, filtered by ?departmentId=uuid */
 router.get("/general-specialties/public", settingsController.listGeneralSpecialties);
-router.get("/general-specialties", requireAuth, settingsController.listGeneralSpecialties);
+/** Admin — all items including inactive */
+router.get("/general-specialties", requireAuth, settingsController.listAllGeneralSpecialties);
 router.post(
   "/general-specialties",
   requireAuth,

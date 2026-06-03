@@ -113,11 +113,20 @@ export const settingsService = {
 
   // ── Professional Grades ─────────────────────────────────────────────────────
 
-  async listProfessionalGrades(departmentId?: string) {
-    const condition = departmentId
-      ? and(eq(professionalGrades.isActive, true), eq(professionalGrades.departmentId, departmentId))
-      : eq(professionalGrades.isActive, true);
-    return db.select().from(professionalGrades).where(condition);
+  async listProfessionalGrades(departmentId?: string, activeOnly = true) {
+    if (activeOnly && departmentId) {
+      return db.select().from(professionalGrades)
+        .where(and(eq(professionalGrades.isActive, true), eq(professionalGrades.departmentId, departmentId)));
+    }
+    if (activeOnly) {
+      return db.select().from(professionalGrades)
+        .where(eq(professionalGrades.isActive, true));
+    }
+    if (departmentId) {
+      return db.select().from(professionalGrades)
+        .where(eq(professionalGrades.departmentId, departmentId));
+    }
+    return db.select().from(professionalGrades);
   },
 
   async createProfessionalGrade(data: CreateProfessionalGradeInput) {
@@ -140,11 +149,20 @@ export const settingsService = {
 
   // ── General Specialties ─────────────────────────────────────────────────────
 
-  async listGeneralSpecialties(departmentId?: string) {
-    const condition = departmentId
-      ? and(eq(generalSpecialties.isActive, true), eq(generalSpecialties.departmentId, departmentId))
-      : eq(generalSpecialties.isActive, true);
-    return db.select().from(generalSpecialties).where(condition);
+  async listGeneralSpecialties(departmentId?: string, activeOnly = true) {
+    if (activeOnly && departmentId) {
+      return db.select().from(generalSpecialties)
+        .where(and(eq(generalSpecialties.isActive, true), eq(generalSpecialties.departmentId, departmentId)));
+    }
+    if (activeOnly) {
+      return db.select().from(generalSpecialties)
+        .where(eq(generalSpecialties.isActive, true));
+    }
+    if (departmentId) {
+      return db.select().from(generalSpecialties)
+        .where(eq(generalSpecialties.departmentId, departmentId));
+    }
+    return db.select().from(generalSpecialties);
   },
 
   async createGeneralSpecialty(data: CreateGeneralSpecialtyInput) {

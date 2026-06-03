@@ -89,8 +89,14 @@ export async function deleteDepartment(req: Request, res: Response): Promise<voi
 
 // ── Professional Grades ───────────────────────────────────────────────────────
 
+/** Public endpoint — active only */
 export async function listProfessionalGrades(req: Request, res: Response): Promise<void> {
-  sendSuccess(res, await settingsService.listProfessionalGrades(req.query.departmentId as string | undefined));
+  sendSuccess(res, await settingsService.listProfessionalGrades(req.query.departmentId as string | undefined, true));
+}
+
+/** Admin endpoint — all items including inactive */
+export async function listAllProfessionalGrades(req: Request, res: Response): Promise<void> {
+  sendSuccess(res, await settingsService.listProfessionalGrades(req.query.departmentId as string | undefined, false));
 }
 
 export async function createProfessionalGrade(req: Request, res: Response): Promise<void> {
@@ -110,8 +116,14 @@ export async function deleteProfessionalGrade(req: Request, res: Response): Prom
 
 // ── General Specialties ───────────────────────────────────────────────────────
 
+/** Public endpoint — active only */
 export async function listGeneralSpecialties(req: Request, res: Response): Promise<void> {
-  sendSuccess(res, await settingsService.listGeneralSpecialties(req.query.departmentId as string | undefined));
+  sendSuccess(res, await settingsService.listGeneralSpecialties(req.query.departmentId as string | undefined, true));
+}
+
+/** Admin endpoint — all items including inactive */
+export async function listAllGeneralSpecialties(req: Request, res: Response): Promise<void> {
+  sendSuccess(res, await settingsService.listGeneralSpecialties(req.query.departmentId as string | undefined, false));
 }
 
 export async function createGeneralSpecialty(req: Request, res: Response): Promise<void> {
