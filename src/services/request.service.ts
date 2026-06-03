@@ -4,6 +4,7 @@ import {
   applicants,
   academicQualifications,
   hiringCompanies,
+  clientCompanies,
   jobAds,
   jobRequests,
   qualificationTypeSettings,
@@ -105,6 +106,10 @@ const requestSelectFields = {
   generalSpecialty: {
     id: generalSpecialties.id,
     name: generalSpecialties.name,
+  },
+  assignedClientCompany: {
+    id: clientCompanies.id,
+    companyName: clientCompanies.companyName,
   },
 };
 
@@ -209,6 +214,7 @@ export const requestService = {
       .leftJoin(departments, eq(jobRequests.departmentId, departments.id))
       .leftJoin(professionalGrades, eq(jobRequests.professionalGradeId, professionalGrades.id))
       .leftJoin(generalSpecialties, eq(jobRequests.generalSpecialtyId, generalSpecialties.id))
+      .leftJoin(clientCompanies, eq(applicants.assignedClientCompanyId, clientCompanies.id))
       .where(whereCondition)
       .orderBy(desc(jobRequests.createdAt));
 
@@ -240,6 +246,7 @@ export const requestService = {
       department: r.department?.id ? { id: r.department.id, name: r.department.name } : null,
       professionalGrade: r.professionalGrade?.id ? { id: r.professionalGrade.id, name: r.professionalGrade.name } : null,
       generalSpecialty: r.generalSpecialty?.id ? { id: r.generalSpecialty.id, name: r.generalSpecialty.name } : null,
+      assignedClientCompany: r.assignedClientCompany?.id ? { id: r.assignedClientCompany.id, companyName: r.assignedClientCompany.companyName } : null,
       qualifications: qualMap.get(r.applicant.id) ?? [],
     }));
   },
@@ -310,6 +317,10 @@ export const requestService = {
           id: generalSpecialties.id,
           name: generalSpecialties.name,
         },
+        assignedClientCompany: {
+          id: clientCompanies.id,
+          companyName: clientCompanies.companyName,
+        },
       })
       .from(jobRequests)
       .innerJoin(applicants, eq(jobRequests.applicantId, applicants.id))
@@ -318,6 +329,7 @@ export const requestService = {
       .leftJoin(departments, eq(jobRequests.departmentId, departments.id))
       .leftJoin(professionalGrades, eq(jobRequests.professionalGradeId, professionalGrades.id))
       .leftJoin(generalSpecialties, eq(jobRequests.generalSpecialtyId, generalSpecialties.id))
+      .leftJoin(clientCompanies, eq(applicants.assignedClientCompanyId, clientCompanies.id))
       .where(eq(jobRequests.id, id));
 
     if (!request) throw new NotFoundError("Request not found");
@@ -338,7 +350,14 @@ export const requestService = {
       )
       .where(eq(academicQualifications.applicantId, request.applicant.id));
 
-    return { ...request, qualifications };
+    return {
+      ...request,
+      department: request.department?.id ? { id: request.department.id, name: request.department.name } : null,
+      professionalGrade: request.professionalGrade?.id ? { id: request.professionalGrade.id, name: request.professionalGrade.name } : null,
+      generalSpecialty: request.generalSpecialty?.id ? { id: request.generalSpecialty.id, name: request.generalSpecialty.name } : null,
+      assignedClientCompany: request.assignedClientCompany?.id ? { id: request.assignedClientCompany.id, companyName: request.assignedClientCompany.companyName } : null,
+      qualifications,
+    };
   },
 
   async markViewedByAdmin(id: string) {

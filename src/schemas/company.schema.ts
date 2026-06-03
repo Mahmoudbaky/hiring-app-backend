@@ -22,6 +22,8 @@ export type CreateCompanyInput = z.infer<typeof createCompanySchema>;
 export type UpdateCompanyInput = z.infer<typeof updateCompanySchema>;
 
 export const registerCompanySchema = z.object({
+  // Company type
+  companyType: z.enum(["hiring", "client"]).default("hiring"),
   // Company info
   companyName: z.string().min(1),
   phoneNumber: z.string().optional(),

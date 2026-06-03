@@ -44,6 +44,11 @@ export const auth = betterAuth({
         required: false,
         input: false,
       },
+      clientCompanyId: {
+        type: "string",
+        required: false,
+        input: false,
+      },
     },
   },
   trustedOrigins: [process.env.FRONTEND_URL ?? "http://localhost:5173"],

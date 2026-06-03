@@ -8,6 +8,7 @@ import {
   timestamp,
   integer,
   date,
+  unique,
 } from "drizzle-orm/pg-core";
 
 // ─────────────────────────────────────────────
@@ -17,6 +18,7 @@ import {
 export const userRoleEnum = pgEnum("user_role", [
   "super_admin",
   "company_user",
+  "client_company_user",
 ]);
 
 export const adTypeEnum = pgEnum("ad_type", ["remote", "on_site", "hybrid"]);
@@ -60,8 +62,28 @@ export const hiringCompanies = pgTable("hiring_companies", {
 });
 
 // ─────────────────────────────────────────────
+// Client Companies (seek employees from shared talent pool)
+// ─────────────────────────────────────────────
+
+export const clientCompanies = pgTable("client_companies", {
+  id: uuid("id").primaryKey().defaultRandom(),
+  companyName: varchar("company_name", { length: 255 }).notNull(),
+  phoneNumber: varchar("phone_number", { length: 20 }),
+  address: text("address"),
+  managerName: varchar("manager_name", { length: 255 }),
+  companyRecord: text("company_record"),
+  logo: text("logo"),
+  isActive: boolean("is_active").default(true).notNull(),
+  isConfirmed: boolean("is_confirmed").default(false).notNull(),
+  otpCode: varchar("otp_code", { length: 6 }),
+  otpExpiresAt: timestamp("otp_expires_at"),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+  updatedAt: timestamp("updated_at").defaultNow().notNull(),
+});
+
+// ─────────────────────────────────────────────
 // Users  (better-auth compatible — table name must be "user")
-// role + hiringCompanyId are our custom additions
+// role + hiringCompanyId / clientCompanyId are our custom additions
 // ─────────────────────────────────────────────
 
 export const users = pgTable("user", {
@@ -75,6 +97,9 @@ export const users = pgTable("user", {
   role: userRoleEnum("role").default("company_user").notNull(),
   hiringCompanyId: uuid("hiring_company_id").references(
     () => hiringCompanies.id
+  ),
+  clientCompanyId: uuid("client_company_id").references(
+    () => clientCompanies.id
   ),
   createdAt: timestamp("created_at").notNull(),
   updatedAt: timestamp("updated_at").notNull(),
@@ -206,6 +231,9 @@ export const applicants = pgTable("applicants", {
   dateOfBirth: date("date_of_birth"),
   nationality: varchar("nationality", { length: 100 }),
   currentJobLocation: varchar("current_job_location", { length: 255 }),
+  assignedClientCompanyId: uuid("assigned_client_company_id").references(
+    () => clientCompanies.id
+  ),
   createdAt: timestamp("created_at").defaultNow().notNull(),
 });
 
@@ -244,6 +272,27 @@ export const contactMessages = pgTable("contact_messages", {
   isRead: boolean("is_read").default(false).notNull(),
   createdAt: timestamp("created_at").defaultNow().notNull(),
 });
+
+// ─────────────────────────────────────────────
+// Client Company Applicant Tracking  (junction: status per client co per applicant)
+// ─────────────────────────────────────────────
+
+export const clientCompanyApplicants = pgTable(
+  "client_company_applicants",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    clientCompanyId: uuid("client_company_id")
+      .notNull()
+      .references(() => clientCompanies.id, { onDelete: "cascade" }),
+    applicantId: uuid("applicant_id")
+      .notNull()
+      .references(() => applicants.id, { onDelete: "cascade" }),
+    status: requestStatusEnum("status").default("new").notNull(),
+    createdAt: timestamp("created_at").defaultNow().notNull(),
+    updatedAt: timestamp("updated_at").defaultNow().notNull(),
+  },
+  (t) => [unique().on(t.clientCompanyId, t.applicantId)]
+);
 
 // ─────────────────────────────────────────────
 export const jobRequests = pgTable(

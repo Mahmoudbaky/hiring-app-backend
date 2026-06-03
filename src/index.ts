@@ -25,6 +25,7 @@ import otpRouter from "./routes/otp.routes.js";
 import profileRouter from "./routes/profile.routes.js";
 import contactRouter from "./routes/contact.routes.js";
 import dashboardRouter from "./routes/dashboard.routes.js";
+import clientApplicantsRouter from "./routes/clientApplicant.routes.js";
 import { testConnection } from "./db/index.js";
 
 const app: Express = express();
@@ -75,6 +76,7 @@ app.use("/api/otp", otpRouter);
 app.use("/api/profile", profileRouter);
 app.use("/api/contact", contactRouter);
 app.use("/api/dashboard", dashboardRouter);
+app.use("/api/client-applicants", clientApplicantsRouter);
 
 /**
  * @swagger
