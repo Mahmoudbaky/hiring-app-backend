@@ -22,10 +22,12 @@ export const updateQualificationTypeSchema = z.object({
 
 export const createDepartmentSchema = z.object({
   name: z.string().min(1),
+  hasExtraSpecialties: z.boolean().optional(),
 });
 
 export const updateDepartmentSchema = z.object({
   name: z.string().min(1).optional(),
+  hasExtraSpecialties: z.boolean().optional(),
   isActive: z.boolean().optional(),
 });
 

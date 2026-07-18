@@ -154,6 +154,7 @@ export const verifications = pgTable("verification", {
 export const departments = pgTable("departments", {
   id: uuid("id").primaryKey().defaultRandom(),
   name: varchar("name", { length: 255 }).notNull(),
+  hasExtraSpecialties: boolean("has_extra_specialties").default(false).notNull(),
   isActive: boolean("is_active").default(true).notNull(),
   createdAt: timestamp("created_at").defaultNow().notNull(),
 });
