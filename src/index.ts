@@ -10,7 +10,7 @@ import swaggerUi from "swagger-ui-express";
 import { toNodeHandler } from "better-auth/node";
 import { swaggerSpec } from "./lib/swagger.js";
 import logger from "./lib/logger.js";
-import { auth } from "./lib/auth.js";
+import { adminAuth, hiringAuth, clientAuth } from "./lib/auth.js";
 import { errorHandler, notFoundHandler } from "./middleware/errorHandler.js";
 import { sendSuccess } from "./utils/response.js";
 import companiesRouter from "./routes/companies.routes.js";
@@ -39,11 +39,21 @@ app.use(
   }),
 );
 
-// ── better-auth handler (must be before express.json()) ──────────────────────
-const authHandler = toNodeHandler(auth);
+// ── better-auth handlers — one per portal (must be before express.json()) ────
+const adminAuthHandler = toNodeHandler(adminAuth);
+const hiringAuthHandler = toNodeHandler(hiringAuth);
+const clientAuthHandler = toNodeHandler(clientAuth);
 app.use((req: Request, res: Response, next: NextFunction) => {
-  if (req.originalUrl.startsWith("/api/auth/")) {
-    authHandler(req as any, res as any);
+  if (req.originalUrl.startsWith("/api/auth/admin/")) {
+    adminAuthHandler(req as any, res as any);
+    return;
+  }
+  if (req.originalUrl.startsWith("/api/auth/hiring/")) {
+    hiringAuthHandler(req as any, res as any);
+    return;
+  }
+  if (req.originalUrl.startsWith("/api/auth/client/")) {
+    clientAuthHandler(req as any, res as any);
     return;
   }
   next();

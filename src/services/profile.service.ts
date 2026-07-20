@@ -1,42 +1,70 @@
 import { eq, and } from "drizzle-orm";
 import { db } from "../db/index.js";
-import { users, accounts } from "../db/schema.js";
-import { auth } from "../lib/auth.js";
+import {
+  adminUsers,
+  adminAccounts,
+  hiringUsers,
+  hiringAccounts,
+  clientUsers,
+  clientAccounts,
+} from "../db/schema.js";
+import { adminAuth, hiringAuth, clientAuth } from "../lib/auth.js";
+import type { AuthUser } from "../middleware/requireAuth.js";
 import type { UpdateProfileInput } from "../schemas/user.schema.js";
 
-const profileFields = {
-  id: users.id,
-  name: users.name,
-  email: users.email,
-  image: users.image,
-  role: users.role,
-  hiringCompanyId: users.hiringCompanyId,
-  createdAt: users.createdAt,
-} as const;
+type Role = AuthUser["role"];
+
+// Resolve the portal-specific tables + auth instance for a given role.
+function portalFor(role: Role) {
+  switch (role) {
+    case "super_admin":
+      return { userTable: adminUsers, accountTable: adminAccounts, auth: adminAuth };
+    case "client_company_user":
+      return { userTable: clientUsers, accountTable: clientAccounts, auth: clientAuth };
+    case "company_user":
+    default:
+      return { userTable: hiringUsers, accountTable: hiringAccounts, auth: hiringAuth };
+  }
+}
+
+function toProfile(role: Role, row: any) {
+  return {
+    id: row.id,
+    name: row.name,
+    email: row.email,
+    image: row.image,
+    role,
+    hiringCompanyId: role === "company_user" ? row.hiringCompanyId ?? null : null,
+    clientCompanyId: role === "client_company_user" ? row.clientCompanyId ?? null : null,
+    createdAt: row.createdAt,
+  };
+}
 
 export const profileService = {
-  async get(userId: string) {
-    const [user] = await db.select(profileFields).from(users).where(eq(users.id, userId));
-    return user ?? null;
+  async get(role: Role, userId: string) {
+    const { userTable } = portalFor(role);
+    const [user] = await db.select().from(userTable as any).where(eq((userTable as any).id, userId));
+    return user ? toProfile(role, user) : null;
   },
 
-  async update(userId: string, data: UpdateProfileInput) {
+  async update(role: Role, userId: string, data: UpdateProfileInput) {
+    const { userTable, accountTable, auth } = portalFor(role);
     const { newPassword, ...profileData } = data;
 
     if (newPassword) {
       const ctx = await auth.$context;
       const hashed = await ctx.password.hash(newPassword);
       await db
-        .update(accounts)
+        .update(accountTable as any)
         .set({ password: hashed, updatedAt: new Date() })
-        .where(and(eq(accounts.userId, userId), eq(accounts.providerId, "credential")));
+        .where(and(eq((accountTable as any).userId, userId), eq((accountTable as any).providerId, "credential")));
     }
 
     const [updated] = await db
-      .update(users)
+      .update(userTable as any)
       .set({ ...profileData, updatedAt: new Date() })
-      .where(eq(users.id, userId))
-      .returning(profileFields);
-    return updated ?? null;
+      .where(eq((userTable as any).id, userId))
+      .returning();
+    return updated ? toProfile(role, updated) : null;
   },
 };

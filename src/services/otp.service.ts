@@ -1,6 +1,6 @@
 import { eq } from "drizzle-orm";
 import { db } from "../db/index.js";
-import { hiringCompanies, clientCompanies, users } from "../db/schema.js";
+import { hiringCompanies, clientCompanies, hiringUsers, clientUsers } from "../db/schema.js";
 import { sendOtpEmail } from "../utils/mailer.js";
 import { BadRequestError, NotFoundError } from "../utils/errors.js";
 
@@ -18,31 +18,36 @@ type UnconfirmedResult = {
 };
 
 async function getUnconfirmedCompany(email: string): Promise<UnconfirmedResult> {
-  const [user] = await db
-    .select({ hiringCompanyId: users.hiringCompanyId, clientCompanyId: users.clientCompanyId, name: users.name })
-    .from(users)
-    .where(eq(users.email, email));
+  // A given email belongs to exactly one portal — look it up in the hiring
+  // user table first, then the client user table.
+  const [hiringUser] = await db
+    .select({ hiringCompanyId: hiringUsers.hiringCompanyId, name: hiringUsers.name })
+    .from(hiringUsers)
+    .where(eq(hiringUsers.email, email));
 
-  if (!user) throw new NotFoundError("البريد الإلكتروني غير مسجل");
-
-  if (user.hiringCompanyId) {
+  if (hiringUser?.hiringCompanyId) {
     const [company] = await db
       .select()
       .from(hiringCompanies)
-      .where(eq(hiringCompanies.id, user.hiringCompanyId));
+      .where(eq(hiringCompanies.id, hiringUser.hiringCompanyId));
     if (!company) throw new NotFoundError("الشركة غير موجودة");
     if (company.isConfirmed) throw new BadRequestError("الشركة مؤكدة بالفعل");
-    return { companyId: company.id, companyName: company.companyName, type: "hiring", userName: user.name };
+    return { companyId: company.id, companyName: company.companyName, type: "hiring", userName: hiringUser.name };
   }
 
-  if (user.clientCompanyId) {
+  const [clientUser] = await db
+    .select({ clientCompanyId: clientUsers.clientCompanyId, name: clientUsers.name })
+    .from(clientUsers)
+    .where(eq(clientUsers.email, email));
+
+  if (clientUser?.clientCompanyId) {
     const [company] = await db
       .select()
       .from(clientCompanies)
-      .where(eq(clientCompanies.id, user.clientCompanyId));
+      .where(eq(clientCompanies.id, clientUser.clientCompanyId));
     if (!company) throw new NotFoundError("الشركة غير موجودة");
     if (company.isConfirmed) throw new BadRequestError("الشركة مؤكدة بالفعل");
-    return { companyId: company.id, companyName: company.companyName, type: "client", userName: user.name };
+    return { companyId: company.id, companyName: company.companyName, type: "client", userName: clientUser.name };
   }
 
   throw new NotFoundError("البريد الإلكتروني غير مسجل");

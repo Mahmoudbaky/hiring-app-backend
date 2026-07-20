@@ -1,7 +1,7 @@
 import type { Request, Response, NextFunction } from "express";
 import { fromNodeHeaders } from "better-auth/node";
 import { eq } from "drizzle-orm";
-import { auth } from "../lib/auth.js";
+import { adminAuth, hiringAuth, clientAuth } from "../lib/auth.js";
 import { db } from "../db/index.js";
 import { hiringCompanies, clientCompanies } from "../db/schema.js";
 import { UnauthorizedError, ForbiddenError } from "../utils/index.js";
@@ -28,61 +28,104 @@ export async function requireAuth(
   _res: Response,
   next: NextFunction
 ): Promise<void> {
-  const session = await auth.api.getSession({
-    headers: fromNodeHeaders(req.headers),
-  });
+  const headers = fromNodeHeaders(req.headers);
 
-  if (!session) throw new UnauthorizedError();
+  // Each portal reads only its own prefixed cookie, so at most one of these
+  // returns a session. Order: admin → hiring → client.
+  const [adminSession, hiringSession, clientSession] = await Promise.all([
+    adminAuth.api.getSession({ headers }),
+    hiringAuth.api.getSession({ headers }),
+    clientAuth.api.getSession({ headers }),
+  ]);
 
-  const u = session.user as typeof session.user & {
-    role?: string;
-    hiringCompanyId?: string;
-    clientCompanyId?: string;
-    isFrozen?: boolean;
-  };
+  // ── Super admin ──────────────────────────────
+  if (adminSession) {
+    const u = adminSession.user as typeof adminSession.user & {
+      isFrozen?: boolean;
+    };
+    if (u.isFrozen) throw new UnauthorizedError("تم تجميد حسابك");
 
-  if (u.isFrozen) throw new UnauthorizedError("تم تجميد حسابك");
-
-  const role = (u.role as AuthUser["role"]) ?? "company_user";
-  const hiringCompanyId = u.hiringCompanyId ?? null;
-  const clientCompanyId = u.clientCompanyId ?? null;
-
-  if (role === "company_user" && hiringCompanyId) {
-    const [company] = await db
-      .select({ isActive: hiringCompanies.isActive, isConfirmed: hiringCompanies.isConfirmed })
-      .from(hiringCompanies)
-      .where(eq(hiringCompanies.id, hiringCompanyId));
-    if (company && !company.isConfirmed) {
-      throw new ForbiddenError("لم يتم تأكيد بريد الشركة بعد، يرجى التحقق من بريدك الإلكتروني");
-    }
-    if (company && !company.isActive) {
-      throw new ForbiddenError("تم تجميد شركتك، يرجى التواصل مع المسؤول");
-    }
+    req.user = {
+      id: u.id,
+      name: u.name,
+      email: u.email,
+      role: "super_admin",
+      hiringCompanyId: null,
+      clientCompanyId: null,
+    };
+    next();
+    return;
   }
 
-  if (role === "client_company_user" && clientCompanyId) {
-    const [company] = await db
-      .select({ isActive: clientCompanies.isActive, isConfirmed: clientCompanies.isConfirmed })
-      .from(clientCompanies)
-      .where(eq(clientCompanies.id, clientCompanyId));
-    if (company && !company.isConfirmed) {
-      throw new ForbiddenError("لم يتم تأكيد بريد الشركة بعد، يرجى التحقق من بريدك الإلكتروني");
+  // ── Hiring company user ──────────────────────
+  if (hiringSession) {
+    const u = hiringSession.user as typeof hiringSession.user & {
+      isFrozen?: boolean;
+      hiringCompanyId?: string;
+    };
+    if (u.isFrozen) throw new UnauthorizedError("تم تجميد حسابك");
+
+    const hiringCompanyId = u.hiringCompanyId ?? null;
+    if (hiringCompanyId) {
+      const [company] = await db
+        .select({ isActive: hiringCompanies.isActive, isConfirmed: hiringCompanies.isConfirmed })
+        .from(hiringCompanies)
+        .where(eq(hiringCompanies.id, hiringCompanyId));
+      if (company && !company.isConfirmed) {
+        throw new ForbiddenError("لم يتم تأكيد بريد الشركة بعد، يرجى التحقق من بريدك الإلكتروني");
+      }
+      if (company && !company.isActive) {
+        throw new ForbiddenError("تم تجميد شركتك، يرجى التواصل مع المسؤول");
+      }
     }
-    if (company && !company.isActive) {
-      throw new ForbiddenError("تم تجميد شركتك، يرجى التواصل مع المسؤول");
-    }
+
+    req.user = {
+      id: u.id,
+      name: u.name,
+      email: u.email,
+      role: "company_user",
+      hiringCompanyId,
+      clientCompanyId: null,
+    };
+    next();
+    return;
   }
 
-  req.user = {
-    id: u.id,
-    name: u.name,
-    email: u.email,
-    role,
-    hiringCompanyId,
-    clientCompanyId,
-  };
+  // ── Client company user ──────────────────────
+  if (clientSession) {
+    const u = clientSession.user as typeof clientSession.user & {
+      isFrozen?: boolean;
+      clientCompanyId?: string;
+    };
+    if (u.isFrozen) throw new UnauthorizedError("تم تجميد حسابك");
 
-  next();
+    const clientCompanyId = u.clientCompanyId ?? null;
+    if (clientCompanyId) {
+      const [company] = await db
+        .select({ isActive: clientCompanies.isActive, isConfirmed: clientCompanies.isConfirmed })
+        .from(clientCompanies)
+        .where(eq(clientCompanies.id, clientCompanyId));
+      if (company && !company.isConfirmed) {
+        throw new ForbiddenError("لم يتم تأكيد بريد الشركة بعد، يرجى التحقق من بريدك الإلكتروني");
+      }
+      if (company && !company.isActive) {
+        throw new ForbiddenError("تم تجميد شركتك، يرجى التواصل مع المسؤول");
+      }
+    }
+
+    req.user = {
+      id: u.id,
+      name: u.name,
+      email: u.email,
+      role: "client_company_user",
+      hiringCompanyId: null,
+      clientCompanyId,
+    };
+    next();
+    return;
+  }
+
+  throw new UnauthorizedError();
 }
 
 export function requireRole(...roles: Array<"super_admin" | "company_user" | "client_company_user">) {

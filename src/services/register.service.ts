@@ -1,7 +1,7 @@
 import { count, eq } from "drizzle-orm";
 import { db } from "../db/index.js";
-import { hiringCompanies, clientCompanies, users } from "../db/schema.js";
-import { auth } from "../lib/auth.js";
+import { hiringCompanies, clientCompanies, hiringUsers, clientUsers } from "../db/schema.js";
+import { hiringAuth, clientAuth } from "../lib/auth.js";
 import { ConflictError } from "../utils/errors.js";
 import type { RegisterCompanyInput } from "../schemas/company.schema.js";
 import { sendOtp } from "./otp.service.js";
@@ -15,13 +15,6 @@ async function generateHiringCode(): Promise<string> {
 export async function registerCompany(data: RegisterCompanyInput) {
   const { companyType = "hiring", companyName, phoneNumber, address, managerName, companyRecord, name, email, password, userPhoneNumber } = data;
 
-  // Check email conflict
-  const [existingUser] = await db
-    .select({ id: users.id })
-    .from(users)
-    .where(eq(users.email, email));
-  if (existingUser) throw new ConflictError("البريد الإلكتروني مستخدم بالفعل");
-
   if (companyType === "client") {
     return registerClientCompany({ companyName, phoneNumber, address, managerName, companyRecord, name, email, password, userPhoneNumber });
   }
@@ -32,6 +25,13 @@ export async function registerCompany(data: RegisterCompanyInput) {
 async function registerHiringCompany(data: Omit<RegisterCompanyInput, "companyType">) {
   const { companyName, phoneNumber, address, managerName, companyRecord, name, email, password, userPhoneNumber } = data;
 
+  // Check email conflict within the hiring portal
+  const [existingUser] = await db
+    .select({ id: hiringUsers.id })
+    .from(hiringUsers)
+    .where(eq(hiringUsers.email, email));
+  if (existingUser) throw new ConflictError("البريد الإلكتروني مستخدم بالفعل");
+
   const uniqueCode = await generateHiringCode();
 
   const [company] = await db
@@ -40,22 +40,21 @@ async function registerHiringCompany(data: Omit<RegisterCompanyInput, "companyTy
     .returning();
 
   try {
-    const authResult = await auth.api.signUpEmail({
+    const authResult = await hiringAuth.api.signUpEmail({
       body: { name, email, password },
     });
 
     const [user] = await db
-      .update(users)
-      .set({ role: "company_user", phoneNumber: userPhoneNumber ?? null, hiringCompanyId: company.id, updatedAt: new Date() })
-      .where(eq(users.id, authResult.user.id))
+      .update(hiringUsers)
+      .set({ phoneNumber: userPhoneNumber ?? null, hiringCompanyId: company.id, updatedAt: new Date() })
+      .where(eq(hiringUsers.id, authResult.user.id))
       .returning({
-        id: users.id,
-        name: users.name,
-        email: users.email,
-        phoneNumber: users.phoneNumber,
-        role: users.role,
-        hiringCompanyId: users.hiringCompanyId,
-        createdAt: users.createdAt,
+        id: hiringUsers.id,
+        name: hiringUsers.name,
+        email: hiringUsers.email,
+        phoneNumber: hiringUsers.phoneNumber,
+        hiringCompanyId: hiringUsers.hiringCompanyId,
+        createdAt: hiringUsers.createdAt,
       });
 
     sendOtp(email).catch((err) => console.error("[mailer] OTP email failed:", err));
@@ -70,28 +69,34 @@ async function registerHiringCompany(data: Omit<RegisterCompanyInput, "companyTy
 async function registerClientCompany(data: Omit<RegisterCompanyInput, "companyType">) {
   const { companyName, phoneNumber, address, managerName, companyRecord, name, email, password, userPhoneNumber } = data;
 
+  // Check email conflict within the client portal
+  const [existingUser] = await db
+    .select({ id: clientUsers.id })
+    .from(clientUsers)
+    .where(eq(clientUsers.email, email));
+  if (existingUser) throw new ConflictError("البريد الإلكتروني مستخدم بالفعل");
+
   const [company] = await db
     .insert(clientCompanies)
     .values({ companyName, phoneNumber, address, managerName, companyRecord })
     .returning();
 
   try {
-    const authResult = await auth.api.signUpEmail({
+    const authResult = await clientAuth.api.signUpEmail({
       body: { name, email, password },
     });
 
     const [user] = await db
-      .update(users)
-      .set({ role: "client_company_user", phoneNumber: userPhoneNumber ?? null, clientCompanyId: company.id, updatedAt: new Date() })
-      .where(eq(users.id, authResult.user.id))
+      .update(clientUsers)
+      .set({ phoneNumber: userPhoneNumber ?? null, clientCompanyId: company.id, updatedAt: new Date() })
+      .where(eq(clientUsers.id, authResult.user.id))
       .returning({
-        id: users.id,
-        name: users.name,
-        email: users.email,
-        phoneNumber: users.phoneNumber,
-        role: users.role,
-        clientCompanyId: users.clientCompanyId,
-        createdAt: users.createdAt,
+        id: clientUsers.id,
+        name: clientUsers.name,
+        email: clientUsers.email,
+        phoneNumber: clientUsers.phoneNumber,
+        clientCompanyId: clientUsers.clientCompanyId,
+        createdAt: clientUsers.createdAt,
       });
 
     sendOtp(email).catch((err) => console.error("[mailer] OTP email failed:", err));
