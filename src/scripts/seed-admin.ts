@@ -4,14 +4,14 @@
  *   pnpm tsx src/scripts/seed-admin.ts
  */
 
-import "dotenv/config";
+import "../lib/env.js";
 import { eq } from "drizzle-orm";
 import { db } from "../db/index.js";
 import { adminUsers } from "../db/schema.js";
 import { adminAuth } from "../lib/auth.js";
 
 const SUPER_ADMIN_NAME  = "Super Admin";
-const SUPER_ADMIN_EMAIL = process.env.SUPER_ADMIN_EMAIL ?? "admin@hiringapp.com";
+const SUPER_ADMIN_EMAIL = process.env.SUPER_ADMIN_EMAIL ?? "ahmedbaiome@gmail.com";
 const SUPER_ADMIN_PASS  = process.env.SUPER_ADMIN_PASSWORD ?? "Admin@1234";
 
 async function main() {

@@ -5,7 +5,7 @@
  * Run:  pnpm seed:medicine
  */
 
-import "dotenv/config";
+import "../lib/env.js";
 import { eq } from "drizzle-orm";
 import { db } from "../db/index.js";
 import { departments, professionalGrades, generalSpecialties } from "../db/schema.js";

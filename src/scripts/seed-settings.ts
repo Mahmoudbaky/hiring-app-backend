@@ -4,7 +4,7 @@
  *   pnpm tsx src/scripts/seed-settings.ts
  */
 
-import "dotenv/config";
+import "../lib/env.js";
 import { db } from "../db/index.js";
 import { jobTitleSettings, qualificationTypeSettings } from "../db/schema.js";
 

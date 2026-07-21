@@ -1,4 +1,4 @@
-import "dotenv/config";
+import "./lib/env.js";
 import express, {
   type Express,
   type Request,
