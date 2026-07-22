@@ -5,8 +5,13 @@ import { sendSuccess, sendCreated } from "../utils/response.js";
 import type { CreateUserInput, UpdateUserInput } from "../schemas/user.schema.js";
 
 export async function list(req: Request, res: Response): Promise<void> {
-  const companyId = req.user?.role === "super_admin" ? null : req.user?.hiringCompanyId;
-  sendSuccess(res, await userService.list(companyId));
+  // Super admin sees every company user across both portals; a company user
+  // sees only their own company's users.
+  if (req.user?.role === "super_admin") {
+    sendSuccess(res, await userService.listAll());
+    return;
+  }
+  sendSuccess(res, await userService.list(req.user?.hiringCompanyId));
 }
 
 export async function create(req: Request, res: Response): Promise<void> {

@@ -15,6 +15,7 @@ import { errorHandler, notFoundHandler } from "./middleware/errorHandler.js";
 import { sendSuccess } from "./utils/response.js";
 import companiesRouter from "./routes/companies.routes.js";
 import usersRouter from "./routes/users.routes.js";
+import adminUsersRouter from "./routes/adminUsers.routes.js";
 import jobsRouter from "./routes/jobs.routes.js";
 import requestsRouter from "./routes/requests.routes.js";
 import settingsRouter from "./routes/settings.routes.js";
@@ -76,6 +77,7 @@ app.get("/api/docs.json", (_req: Request, res: Response) => {
 // ── Routes ───────────────────────────────────────────────────────────────────
 app.use("/api/companies", companiesRouter);
 app.use("/api/users", usersRouter);
+app.use("/api/admin-users", adminUsersRouter);
 app.use("/api/jobs", jobsRouter);
 app.use("/api/requests", requestsRouter);
 app.use("/api/settings", settingsRouter);

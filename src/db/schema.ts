@@ -50,7 +50,6 @@ export const hiringCompanies = pgTable("hiring_companies", {
   managerName: varchar("manager_name", { length: 255 }),
   companyRecord: text("company_record"),
   logo: text("logo"), // Cloudinary URL
-  isAdminCompany: boolean("is_admin_company").default(false).notNull(),
   isActive: boolean("is_active").default(true).notNull(),
   isConfirmed: boolean("is_confirmed").default(false).notNull(),
   otpCode: varchar("otp_code", { length: 6 }),

@@ -37,13 +37,19 @@ import { cloudinary } from "../lib/cloudinary.js";
 //   };
 // }
 
+
+const env = process.env.NODE_ENV;
+
+console.log(env);
+
+
 export async function uploadImage(buffer: Buffer, originalName: string): Promise<string> {
   const ext = extname(originalName).toLowerCase() || ".jpg";
   const publicId = `img_${Date.now()}${ext}`;
 
   return new Promise((resolve, reject) => {
     const uploadStream = cloudinary.uploader.upload_stream(
-      { folder: "hiring-app/images", resource_type: "image", public_id: publicId },
+      { folder: env === "production" ? "hiring-app-production/images" : "hiring-app/images", resource_type: "image", public_id: publicId },
       (error, result) => {
         if (error || !result) return reject(error ?? new Error("Upload failed"));
         resolve(result.secure_url);
@@ -62,11 +68,12 @@ export async function uploadCv(
     .replace(/[^a-zA-Z0-9_-]/g, "_")
     .slice(0, 60);
   const publicId = `${base}_${Date.now()}${ext}`;
+  console.log(env);
 
   return new Promise((resolve, reject) => {
     const uploadStream = cloudinary.uploader.upload_stream(
       {
-        folder: "hiring-app/cvs",
+        folder: env === "production" ? "hiring-app-production/cvs" : "hiring-app/cvs",
         resource_type: "raw",
         public_id: publicId,
         type: "upload",
