@@ -40,7 +40,7 @@ import { cloudinary } from "../lib/cloudinary.js";
 
 const env = process.env.NODE_ENV;
 
-console.log(env);
+
 
 
 export async function uploadImage(buffer: Buffer, originalName: string): Promise<string> {
@@ -68,7 +68,7 @@ export async function uploadCv(
     .replace(/[^a-zA-Z0-9_-]/g, "_")
     .slice(0, 60);
   const publicId = `${base}_${Date.now()}${ext}`;
-  console.log(env);
+
 
   return new Promise((resolve, reject) => {
     const uploadStream = cloudinary.uploader.upload_stream(
