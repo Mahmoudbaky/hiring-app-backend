@@ -2,6 +2,7 @@ import { betterAuth, type BetterAuthOptions } from "better-auth";
 import { drizzleAdapter } from "better-auth/adapters/drizzle";
 import { db } from "../db/index.js";
 import * as schema from "../db/schema.js";
+import { frontendUrls } from "./env.js";
 
 // ─────────────────────────────────────────────
 // Three isolated auth portals (admin / hiring / client)
@@ -63,7 +64,7 @@ function makeAuth(opts: {
     user: {
       additionalFields: (opts.additionalFields ?? {}) as any,
     },
-    trustedOrigins: [process.env.FRONTEND_URL ?? "http://localhost:5173"],
+    trustedOrigins: frontendUrls,
   });
 }
 

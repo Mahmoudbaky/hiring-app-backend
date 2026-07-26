@@ -30,7 +30,7 @@ pnpm seed:settings    # insert Arabic job titles & qualification types (idempote
 
 ```
 DATABASE_URL=postgresql://...    # Neon pooler connection string
-FRONTEND_URL=http://localhost:5173
+FRONTEND_URL=http://localhost:5173,http://localhost:5174   # comma-separated list; first entry is used for links in emails
 PORT=3000
 SUPER_ADMIN_EMAIL=...            # used by seed:admin
 SUPER_ADMIN_PASSWORD=...

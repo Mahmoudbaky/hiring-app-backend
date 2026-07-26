@@ -1,4 +1,4 @@
-import "./lib/env.js";
+import { frontendUrls } from "./lib/env.js";
 import express, {
   type Express,
   type Request,
@@ -35,7 +35,7 @@ const PORT = process.env.PORT ?? 3000;
 // ── CORS (must be before all routes including better-auth) ───────────────────
 app.use(
   cors({
-    origin: process.env.FRONTEND_URL ?? "http://localhost:5173",
+    origin: frontendUrls,
     credentials: true,
   }),
 );

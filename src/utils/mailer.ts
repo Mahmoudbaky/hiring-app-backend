@@ -1,4 +1,5 @@
 import nodemailer from "nodemailer";
+import { frontendUrl } from "../lib/env.js";
 
 const transporter = nodemailer.createTransport({
   host: process.env.SMTP_HOST,
@@ -153,7 +154,7 @@ export async function sendWelcomeEmail(opts: {
           <!-- CTA -->
           <tr>
             <td style="padding:0 48px 40px;text-align:center;">
-              <a href="${process.env.FRONTEND_URL ?? "http://localhost:5173"}/login"
+              <a href="${frontendUrl}/login"
                  style="display:inline-block;background:#c2410c;color:#ffffff;font-size:15px;font-weight:700;padding:14px 36px;border-radius:8px;text-decoration:none;letter-spacing:0.3px;">
                 ابدأ الآن
               </a>
