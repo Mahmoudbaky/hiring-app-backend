@@ -7,7 +7,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 - **Runtime:** Node.js with TypeScript (`tsx` for dev, `tsc` for build)
 - **Framework:** Express 5
 - **Database:** PostgreSQL on Neon serverless via `@neondatabase/serverless` + Drizzle ORM
-- **Auth:** `better-auth` (email+password, Drizzle adapter), sessions at `/api/auth/*`
+- **Auth:** `better-auth` (email+password, Drizzle adapter) — two instances: `/api/auth/admin/*` and `/api/auth/company/*`
 - **Validation:** Zod schemas in `src/schemas/`
 - **Docs:** Swagger UI at `/api/docs`, OpenAPI spec at `/api/docs.json`
 - **Package manager:** pnpm
@@ -22,7 +22,8 @@ pnpm typecheck        # tsc --noEmit
 pnpm db:push          # push schema changes to Neon (dev)
 pnpm db:migrate       # run migrations
 pnpm db:studio        # Drizzle Studio UI
-pnpm seed:admin       # create super admin + admin company (idempotent)
+pnpm seed:admin       # create super admin (idempotent)
+pnpm migrate:company-auth [--apply]  # one-off: merge old hiring_*/client_* auth tables into company_*
 pnpm seed:settings    # insert Arabic job titles & qualification types (idempotent)
 ```
 
@@ -62,12 +63,20 @@ All responses use helpers from `src/utils/response.ts`:
 
 ### Auth & Roles
 
-Two roles: `super_admin` and `company_user`. Role is stored on the `user` table alongside `hiringCompanyId`.
+Two better-auth instances in `src/lib/auth.ts`, each with its own tables and cookie prefix:
 
-- `requireAuth` — validates better-auth session, attaches user to `req.user`
-- `requireRole("super_admin")` — role guard, returns 403 if wrong role
+- `adminAuth` (`/api/auth/admin`, `admin_*` tables) → role `super_admin`
+- `companyAuth` (`/api/auth/company`, `company_*` tables) → hiring and client company users. Role follows `company_user.companyType`: `hiring` → `company_user`, `client` → `client_company_user`. Exactly one of `hiringCompanyId` / `clientCompanyId` is set (DB CHECK).
 
-Company users are scoped to their `hiringCompanyId` — services filter DB queries accordingly. Super admins see all data.
+Rules:
+- **Sign-up is disabled over HTTP.** Create accounts only with `createCredentialUser()` (via `createCompanyUser` in `user.service.ts`, `adminUserService`, the seed).
+- Sign-in checks run in `databaseHooks.session.create.before` (after the password is verified): frozen user, unconfirmed/inactive company, and the `x-portal` header (`hiring`/`client`) must match `companyType`.
+- `requireAuth` only queries the instance whose cookie is present and re-checks freeze/company status on every request. `requireRole(...)` guards roles.
+- Password change goes through `auth.api.changePassword` (current password required, other sessions revoked).
+- OTP codes are HMAC-hashed, limited to 5 attempts, with a 60s resend cooldown. `/api/otp/*`, register and sign-in are rate-limited (`src/middleware/rateLimit.ts`).
+- Never return company rows with OTP columns. Use `hiringCompanyPublicColumns` / `clientCompanyPublicColumns`.
+
+Company users are scoped to their company id; services filter DB queries accordingly. Super admins see all data.
 
 ### Database Schema
 

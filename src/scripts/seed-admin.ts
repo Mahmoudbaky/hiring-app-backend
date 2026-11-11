@@ -8,7 +8,7 @@ import "../lib/env.js";
 import { eq } from "drizzle-orm";
 import { db } from "../db/index.js";
 import { adminUsers } from "../db/schema.js";
-import { adminAuth } from "../lib/auth.js";
+import { adminAuth, createCredentialUser } from "../lib/auth.js";
 
 const SUPER_ADMIN_NAME  = "Super Admin";
 const SUPER_ADMIN_EMAIL = process.env.SUPER_ADMIN_EMAIL ?? "ahmedbaiome@gmail.com";
@@ -26,12 +26,10 @@ async function main() {
     process.exit(0);
   }
 
-  await adminAuth.api.signUpEmail({
-    body: {
-      name: SUPER_ADMIN_NAME,
-      email: SUPER_ADMIN_EMAIL,
-      password: SUPER_ADMIN_PASS,
-    },
+  await createCredentialUser(adminAuth, {
+    name: SUPER_ADMIN_NAME,
+    email: SUPER_ADMIN_EMAIL,
+    password: SUPER_ADMIN_PASS,
   });
 
   console.log(`✔ Super admin created`);

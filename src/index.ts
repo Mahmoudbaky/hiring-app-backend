@@ -10,7 +10,8 @@ import swaggerUi from "swagger-ui-express";
 import { toNodeHandler } from "better-auth/node";
 import { swaggerSpec } from "./lib/swagger.js";
 import logger from "./lib/logger.js";
-import { adminAuth, hiringAuth, clientAuth } from "./lib/auth.js";
+import { adminAuth, companyAuth } from "./lib/auth.js";
+import { authLimiter } from "./middleware/rateLimit.js";
 import { errorHandler, notFoundHandler } from "./middleware/errorHandler.js";
 import { sendSuccess } from "./utils/response.js";
 import companiesRouter from "./routes/companies.routes.js";
@@ -32,6 +33,10 @@ import { testConnection } from "./db/index.js";
 const app: Express = express();
 const PORT = process.env.PORT ?? 3000;
 
+// Behind Vercel / a reverse proxy: use X-Forwarded-For for the client IP
+// (needed by the rate limiters).
+app.set("trust proxy", 1);
+
 // ── CORS (must be before all routes including better-auth) ───────────────────
 app.use(
   cors({
@@ -40,21 +45,22 @@ app.use(
   }),
 );
 
-// ── better-auth handlers — one per portal (must be before express.json()) ────
+// ── better-auth handlers — one per instance (must be before express.json()) ──
+// Rate-limit the endpoints that check a password.
+app.use(
+  ["/api/auth/admin/sign-in", "/api/auth/company/sign-in", "/api/auth/admin/change-password", "/api/auth/company/change-password"],
+  authLimiter,
+);
+
 const adminAuthHandler = toNodeHandler(adminAuth);
-const hiringAuthHandler = toNodeHandler(hiringAuth);
-const clientAuthHandler = toNodeHandler(clientAuth);
+const companyAuthHandler = toNodeHandler(companyAuth);
 app.use((req: Request, res: Response, next: NextFunction) => {
   if (req.originalUrl.startsWith("/api/auth/admin/")) {
     adminAuthHandler(req as any, res as any);
     return;
   }
-  if (req.originalUrl.startsWith("/api/auth/hiring/")) {
-    hiringAuthHandler(req as any, res as any);
-    return;
-  }
-  if (req.originalUrl.startsWith("/api/auth/client/")) {
-    clientAuthHandler(req as any, res as any);
+  if (req.originalUrl.startsWith("/api/auth/company/")) {
+    companyAuthHandler(req as any, res as any);
     return;
   }
   next();

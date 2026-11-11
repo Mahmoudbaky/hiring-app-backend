@@ -9,15 +9,19 @@ import {
   integer,
   date,
   unique,
+  check,
 } from "drizzle-orm/pg-core";
+import { sql, getTableColumns } from "drizzle-orm";
 
 // ─────────────────────────────────────────────
 // Enums
 // ─────────────────────────────────────────────
 
-// Role is no longer a column — it is implied by which portal (table set) a
-// user belongs to: admin_user → super_admin, hiring_user → company_user,
-// client_user → client_company_user.
+// Role is not a column. Admins live in admin_user (→ super_admin); company
+// users live in company_user and their role follows companyType:
+// hiring → company_user, client → client_company_user.
+
+export const companyTypeEnum = pgEnum("company_type", ["hiring", "client"]);
 
 export const adTypeEnum = pgEnum("ad_type", ["remote", "on_site", "hybrid"]);
 
@@ -52,8 +56,10 @@ export const hiringCompanies = pgTable("hiring_companies", {
   logo: text("logo"), // Cloudinary URL
   isActive: boolean("is_active").default(true).notNull(),
   isConfirmed: boolean("is_confirmed").default(false).notNull(),
-  otpCode: varchar("otp_code", { length: 6 }),
+  otpCode: varchar("otp_code", { length: 64 }), // sha256 hex of the OTP
   otpExpiresAt: timestamp("otp_expires_at"),
+  otpAttempts: integer("otp_attempts").default(0).notNull(),
+  otpSentAt: timestamp("otp_sent_at"),
   createdAt: timestamp("created_at").defaultNow().notNull(),
   updatedAt: timestamp("updated_at").defaultNow().notNull(),
 });
@@ -72,19 +78,27 @@ export const clientCompanies = pgTable("client_companies", {
   logo: text("logo"),
   isActive: boolean("is_active").default(true).notNull(),
   isConfirmed: boolean("is_confirmed").default(false).notNull(),
-  otpCode: varchar("otp_code", { length: 6 }),
+  otpCode: varchar("otp_code", { length: 64 }), // sha256 hex of the OTP
   otpExpiresAt: timestamp("otp_expires_at"),
+  otpAttempts: integer("otp_attempts").default(0).notNull(),
+  otpSentAt: timestamp("otp_sent_at"),
   createdAt: timestamp("created_at").defaultNow().notNull(),
   updatedAt: timestamp("updated_at").defaultNow().notNull(),
 });
 
+// Company columns safe to return to clients (no OTP internals).
+function withoutOtp<T extends Record<string, unknown>>(cols: T) {
+  const { otpCode: _c, otpExpiresAt: _e, otpAttempts: _a, otpSentAt: _s, ...rest } = cols;
+  return rest;
+}
+export const hiringCompanyPublicColumns = withoutOtp(getTableColumns(hiringCompanies));
+export const clientCompanyPublicColumns = withoutOtp(getTableColumns(clientCompanies));
+
 // ─────────────────────────────────────────────
-// Auth — three isolated portals (admin / hiring / client)
+// Auth — two isolated better-auth instances
 //
-// Each portal has its own better-auth table set so the three account types
-// live in physically separate tables and can only sign in on their own pages.
-// Role is implied by the table: admin_user → super_admin,
-// hiring_user → company_user, client_user → client_company_user.
+// admin_*   → super admins (own cookie prefix, own sign-in page)
+// company_* → hiring + client company users (role follows companyType)
 // ─────────────────────────────────────────────
 
 // ─── Admin portal (super admin) ──────────────
@@ -140,24 +154,38 @@ export const adminVerifications = pgTable("admin_verification", {
   updatedAt: timestamp("updated_at"),
 });
 
-// ─── Hiring portal (company users) ───────────
+// ─── Company portal (hiring + client company users) ─────
+//
+// Hiring and client company users share one better-auth instance and one
+// table set. `companyType` says which kind of company the user belongs to and
+// exactly one of hiringCompanyId / clientCompanyId is set (CHECK constraint).
 
-export const hiringUsers = pgTable("hiring_user", {
-  id: text("id").primaryKey(),
-  name: text("name").notNull(),
-  email: text("email").notNull().unique(),
-  emailVerified: boolean("email_verified").notNull(),
-  image: text("image"),
-  phoneNumber: varchar("phone_number", { length: 30 }),
-  isFrozen: boolean("is_frozen").default(false).notNull(),
-  hiringCompanyId: uuid("hiring_company_id").references(
-    () => hiringCompanies.id
-  ),
-  createdAt: timestamp("created_at").notNull(),
-  updatedAt: timestamp("updated_at").notNull(),
-});
+export const companyUsers = pgTable(
+  "company_user",
+  {
+    id: text("id").primaryKey(),
+    name: text("name").notNull(),
+    email: text("email").notNull().unique(),
+    emailVerified: boolean("email_verified").notNull(),
+    image: text("image"),
+    phoneNumber: varchar("phone_number", { length: 30 }),
+    isFrozen: boolean("is_frozen").default(false).notNull(),
+    companyType: companyTypeEnum("company_type").notNull(),
+    hiringCompanyId: uuid("hiring_company_id").references(() => hiringCompanies.id),
+    clientCompanyId: uuid("client_company_id").references(() => clientCompanies.id),
+    createdAt: timestamp("created_at").notNull(),
+    updatedAt: timestamp("updated_at").notNull(),
+  },
+  (t) => [
+    check(
+      "company_user_company_matches_type",
+      sql`(${t.companyType} = 'hiring' AND ${t.hiringCompanyId} IS NOT NULL AND ${t.clientCompanyId} IS NULL)
+       OR (${t.companyType} = 'client' AND ${t.clientCompanyId} IS NOT NULL AND ${t.hiringCompanyId} IS NULL)`
+    ),
+  ]
+);
 
-export const hiringSessions = pgTable("hiring_session", {
+export const companySessions = pgTable("company_session", {
   id: text("id").primaryKey(),
   expiresAt: timestamp("expires_at").notNull(),
   token: text("token").notNull().unique(),
@@ -167,16 +195,16 @@ export const hiringSessions = pgTable("hiring_session", {
   userAgent: text("user_agent"),
   userId: text("user_id")
     .notNull()
-    .references(() => hiringUsers.id, { onDelete: "cascade" }),
+    .references(() => companyUsers.id, { onDelete: "cascade" }),
 });
 
-export const hiringAccounts = pgTable("hiring_account", {
+export const companyAccounts = pgTable("company_account", {
   id: text("id").primaryKey(),
   accountId: text("account_id").notNull(),
   providerId: text("provider_id").notNull(),
   userId: text("user_id")
     .notNull()
-    .references(() => hiringUsers.id, { onDelete: "cascade" }),
+    .references(() => companyUsers.id, { onDelete: "cascade" }),
   accessToken: text("access_token"),
   refreshToken: text("refresh_token"),
   idToken: text("id_token"),
@@ -188,64 +216,7 @@ export const hiringAccounts = pgTable("hiring_account", {
   updatedAt: timestamp("updated_at").notNull(),
 });
 
-export const hiringVerifications = pgTable("hiring_verification", {
-  id: text("id").primaryKey(),
-  identifier: text("identifier").notNull(),
-  value: text("value").notNull(),
-  expiresAt: timestamp("expires_at").notNull(),
-  createdAt: timestamp("created_at"),
-  updatedAt: timestamp("updated_at"),
-});
-
-// ─── Client portal (client company users) ────
-
-export const clientUsers = pgTable("client_user", {
-  id: text("id").primaryKey(),
-  name: text("name").notNull(),
-  email: text("email").notNull().unique(),
-  emailVerified: boolean("email_verified").notNull(),
-  image: text("image"),
-  phoneNumber: varchar("phone_number", { length: 30 }),
-  isFrozen: boolean("is_frozen").default(false).notNull(),
-  clientCompanyId: uuid("client_company_id").references(
-    () => clientCompanies.id
-  ),
-  createdAt: timestamp("created_at").notNull(),
-  updatedAt: timestamp("updated_at").notNull(),
-});
-
-export const clientSessions = pgTable("client_session", {
-  id: text("id").primaryKey(),
-  expiresAt: timestamp("expires_at").notNull(),
-  token: text("token").notNull().unique(),
-  createdAt: timestamp("created_at").notNull(),
-  updatedAt: timestamp("updated_at").notNull(),
-  ipAddress: text("ip_address"),
-  userAgent: text("user_agent"),
-  userId: text("user_id")
-    .notNull()
-    .references(() => clientUsers.id, { onDelete: "cascade" }),
-});
-
-export const clientAccounts = pgTable("client_account", {
-  id: text("id").primaryKey(),
-  accountId: text("account_id").notNull(),
-  providerId: text("provider_id").notNull(),
-  userId: text("user_id")
-    .notNull()
-    .references(() => clientUsers.id, { onDelete: "cascade" }),
-  accessToken: text("access_token"),
-  refreshToken: text("refresh_token"),
-  idToken: text("id_token"),
-  accessTokenExpiresAt: timestamp("access_token_expires_at"),
-  refreshTokenExpiresAt: timestamp("refresh_token_expires_at"),
-  scope: text("scope"),
-  password: text("password"),
-  createdAt: timestamp("created_at").notNull(),
-  updatedAt: timestamp("updated_at").notNull(),
-});
-
-export const clientVerifications = pgTable("client_verification", {
+export const companyVerifications = pgTable("company_verification", {
   id: text("id").primaryKey(),
   identifier: text("identifier").notNull(),
   value: text("value").notNull(),
@@ -420,7 +391,7 @@ export const jobRequests = pgTable(
       .default("self")
       .notNull(),
     // populated only when submissionType = 'manual'
-    submittedByUserId: text("submitted_by_user_id").references(() => hiringUsers.id),
+    submittedByUserId: text("submitted_by_user_id").references(() => companyUsers.id),
     notes: text("notes"),
     // job-profile fields (department / grade / specialty cascade)
     departmentId: uuid("department_id").references(() => departments.id),

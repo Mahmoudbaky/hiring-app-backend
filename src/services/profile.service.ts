@@ -1,70 +1,64 @@
-import { eq, and } from "drizzle-orm";
+import { eq } from "drizzle-orm";
 import { db } from "../db/index.js";
-import {
-  adminUsers,
-  adminAccounts,
-  hiringUsers,
-  hiringAccounts,
-  clientUsers,
-  clientAccounts,
-} from "../db/schema.js";
-import { adminAuth, hiringAuth, clientAuth } from "../lib/auth.js";
+import { adminUsers, companyUsers } from "../db/schema.js";
+import { adminAuth, companyAuth } from "../lib/auth.js";
 import type { AuthUser } from "../middleware/requireAuth.js";
 import type { UpdateProfileInput } from "../schemas/user.schema.js";
 
 type Role = AuthUser["role"];
 
-// Resolve the portal-specific tables + auth instance for a given role.
-function portalFor(role: Role) {
-  switch (role) {
-    case "super_admin":
-      return { userTable: adminUsers, accountTable: adminAccounts, auth: adminAuth };
-    case "client_company_user":
-      return { userTable: clientUsers, accountTable: clientAccounts, auth: clientAuth };
-    case "company_user":
-    default:
-      return { userTable: hiringUsers, accountTable: hiringAccounts, auth: hiringAuth };
-  }
-}
-
-function toProfile(role: Role, row: any) {
+function toProfile(role: Role, row: Record<string, any>) {
   return {
     id: row.id,
     name: row.name,
     email: row.email,
     image: row.image,
     role,
-    hiringCompanyId: role === "company_user" ? row.hiringCompanyId ?? null : null,
-    clientCompanyId: role === "client_company_user" ? row.clientCompanyId ?? null : null,
+    hiringCompanyId: role === "company_user" ? (row.hiringCompanyId ?? null) : null,
+    clientCompanyId: role === "client_company_user" ? (row.clientCompanyId ?? null) : null,
     createdAt: row.createdAt,
   };
 }
 
+async function findUser(role: Role, userId: string) {
+  const [user] =
+    role === "super_admin"
+      ? await db.select().from(adminUsers).where(eq(adminUsers.id, userId))
+      : await db.select().from(companyUsers).where(eq(companyUsers.id, userId));
+  return user ?? null;
+}
+
 export const profileService = {
   async get(role: Role, userId: string) {
-    const { userTable } = portalFor(role);
-    const [user] = await db.select().from(userTable as any).where(eq((userTable as any).id, userId));
+    const user = await findUser(role, userId);
     return user ? toProfile(role, user) : null;
   },
 
-  async update(role: Role, userId: string, data: UpdateProfileInput) {
-    const { userTable, accountTable, auth } = portalFor(role);
-    const { newPassword, ...profileData } = data;
+  /**
+   * `headers` are the request headers: changing the password goes through
+   * better-auth so the current password is verified and other sessions end.
+   */
+  async update(role: Role, userId: string, data: UpdateProfileInput, headers: Headers) {
+    const { newPassword, currentPassword, ...profileData } = data;
 
-    if (newPassword) {
-      const ctx = await auth.$context;
-      const hashed = await ctx.password.hash(newPassword);
-      await db
-        .update(accountTable as any)
-        .set({ password: hashed, updatedAt: new Date() })
-        .where(and(eq((accountTable as any).userId, userId), eq((accountTable as any).providerId, "credential")));
+    if (newPassword && currentPassword) {
+      const auth = role === "super_admin" ? adminAuth : companyAuth;
+      // Throws APIError INVALID_PASSWORD (mapped to Arabic in errorHandler).
+      await (auth.api.changePassword as typeof adminAuth.api.changePassword)({
+        body: { currentPassword, newPassword, revokeOtherSessions: true },
+        headers,
+      });
     }
 
-    const [updated] = await db
-      .update(userTable as any)
-      .set({ ...profileData, updatedAt: new Date() })
-      .where(eq((userTable as any).id, userId))
-      .returning();
-    return updated ? toProfile(role, updated) : null;
+    if (Object.keys(profileData).length) {
+      const values = { ...profileData, updatedAt: new Date() };
+      if (role === "super_admin") {
+        await db.update(adminUsers).set(values).where(eq(adminUsers.id, userId));
+      } else {
+        await db.update(companyUsers).set(values).where(eq(companyUsers.id, userId));
+      }
+    }
+
+    return this.get(role, userId);
   },
 };

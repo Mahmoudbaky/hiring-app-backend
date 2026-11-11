@@ -5,6 +5,7 @@ import {
   academicQualifications,
   clientCompanyApplicants,
   clientCompanies,
+  clientCompanyPublicColumns,
   jobRequests,
   qualificationTypeSettings,
 } from "../db/schema.js";
@@ -139,7 +140,7 @@ export const clientApplicantService = {
 
   async getMyCompany(clientCompanyId: string) {
     const [company] = await db
-      .select()
+      .select(clientCompanyPublicColumns)
       .from(clientCompanies)
       .where(eq(clientCompanies.id, clientCompanyId));
     return company ?? null;

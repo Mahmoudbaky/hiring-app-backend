@@ -1,6 +1,6 @@
 import type { Request, Response } from "express";
 import { userService } from "../services/user.service.js";
-import { NotFoundError } from "../utils/index.js";
+import { BadRequestError, NotFoundError } from "../utils/index.js";
 import { sendSuccess, sendCreated } from "../utils/response.js";
 import type { CreateUserInput, UpdateUserInput } from "../schemas/user.schema.js";
 
@@ -15,12 +15,24 @@ export async function list(req: Request, res: Response): Promise<void> {
 }
 
 export async function create(req: Request, res: Response): Promise<void> {
-  const body = req.body as CreateUserInput;
-  // company_user can only create users for their own company
-  if (req.user?.role !== "super_admin") {
-    body.hiringCompanyId = req.user?.hiringCompanyId ?? undefined;
+  const { hiringCompanyId, clientCompanyId, ...body } = req.body as CreateUserInput;
+
+  let companyType: "hiring" | "client";
+  let companyId: string | undefined;
+  if (req.user?.role === "super_admin") {
+    if (!!hiringCompanyId === !!clientCompanyId) {
+      throw new BadRequestError("يرجى تحديد شركة توظيف أو شركة عميلة واحدة");
+    }
+    companyType = hiringCompanyId ? "hiring" : "client";
+    companyId = hiringCompanyId ?? clientCompanyId;
+  } else {
+    // company_user can only create users for their own company
+    companyType = "hiring";
+    companyId = req.user?.hiringCompanyId ?? undefined;
   }
-  sendCreated(res, await userService.create(body));
+  if (!companyId) throw new BadRequestError("يرجى تحديد الشركة");
+
+  sendCreated(res, await userService.create({ ...body, companyType, companyId }));
 }
 
 export async function update(req: Request, res: Response): Promise<void> {

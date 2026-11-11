@@ -1,9 +1,6 @@
 import type { Request, Response, NextFunction } from "express";
 import { fromNodeHeaders } from "better-auth/node";
-import { eq } from "drizzle-orm";
-import { adminAuth, hiringAuth, clientAuth } from "../lib/auth.js";
-import { db } from "../db/index.js";
-import { hiringCompanies, clientCompanies } from "../db/schema.js";
+import { adminAuth, companyAuth, companyAccessError, getCompanyStatus } from "../lib/auth.js";
 import { UnauthorizedError, ForbiddenError } from "../utils/index.js";
 
 export type AuthUser = {
@@ -23,115 +20,79 @@ declare global {
   }
 }
 
+// better-auth cookie names: "<prefix>.session_token", or with
+// "__Secure-" in front when secure cookies are on.
+function hasCookie(cookieHeader: string, prefix: string): boolean {
+  return (
+    cookieHeader.includes(`${prefix}.session_token=`) ||
+    cookieHeader.includes(`__Secure-${prefix}.session_token=`)
+  );
+}
+
 export async function requireAuth(
   req: Request,
   _res: Response,
   next: NextFunction
 ): Promise<void> {
+  const cookieHeader = req.headers.cookie ?? "";
   const headers = fromNodeHeaders(req.headers);
 
-  // Each portal reads only its own prefixed cookie, so at most one of these
-  // returns a session. Order: admin → hiring → client.
-  const [adminSession, hiringSession, clientSession] = await Promise.all([
-    adminAuth.api.getSession({ headers }),
-    hiringAuth.api.getSession({ headers }),
-    clientAuth.api.getSession({ headers }),
-  ]);
-
   // ── Super admin ──────────────────────────────
-  if (adminSession) {
-    const u = adminSession.user as typeof adminSession.user & {
-      isFrozen?: boolean;
-    };
-    if (u.isFrozen) throw new UnauthorizedError("تم تجميد حسابك");
-
-    req.user = {
-      id: u.id,
-      name: u.name,
-      email: u.email,
-      role: "super_admin",
-      hiringCompanyId: null,
-      clientCompanyId: null,
-    };
-    next();
-    return;
-  }
-
-  // ── Hiring company user ──────────────────────
-  if (hiringSession) {
-    const u = hiringSession.user as typeof hiringSession.user & {
-      isFrozen?: boolean;
-      hiringCompanyId?: string;
-    };
-    if (u.isFrozen) throw new UnauthorizedError("تم تجميد حسابك");
-
-    const hiringCompanyId = u.hiringCompanyId ?? null;
-    if (hiringCompanyId) {
-      const [company] = await db
-        .select({ isActive: hiringCompanies.isActive, isConfirmed: hiringCompanies.isConfirmed })
-        .from(hiringCompanies)
-        .where(eq(hiringCompanies.id, hiringCompanyId));
-      if (company && !company.isConfirmed) {
-        throw new ForbiddenError("لم يتم تأكيد بريد الشركة بعد، يرجى التحقق من بريدك الإلكتروني");
-      }
-      if (company && !company.isActive) {
-        throw new ForbiddenError("تم تجميد شركتك، يرجى التواصل مع المسؤول");
-      }
+  // Only ask the instance whose cookie is present.
+  if (hasCookie(cookieHeader, "admin")) {
+    const session = await adminAuth.api.getSession({ headers });
+    if (session) {
+      if (session.user.isFrozen) throw new UnauthorizedError("تم تجميد حسابك");
+      req.user = {
+        id: session.user.id,
+        name: session.user.name,
+        email: session.user.email,
+        role: "super_admin",
+        hiringCompanyId: null,
+        clientCompanyId: null,
+      };
+      next();
+      return;
     }
-
-    req.user = {
-      id: u.id,
-      name: u.name,
-      email: u.email,
-      role: "company_user",
-      hiringCompanyId,
-      clientCompanyId: null,
-    };
-    next();
-    return;
   }
 
-  // ── Client company user ──────────────────────
-  if (clientSession) {
-    const u = clientSession.user as typeof clientSession.user & {
-      isFrozen?: boolean;
-      clientCompanyId?: string;
-    };
-    if (u.isFrozen) throw new UnauthorizedError("تم تجميد حسابك");
+  // ── Company user (hiring or client) ──────────
+  if (hasCookie(cookieHeader, "company")) {
+    const session = await companyAuth.api.getSession({ headers });
+    if (session) {
+      const u = session.user;
+      const companyType = u.companyType as "hiring" | "client";
+      const hiringCompanyId = companyType === "hiring" ? (u.hiringCompanyId ?? null) : null;
+      const clientCompanyId = companyType === "client" ? (u.clientCompanyId ?? null) : null;
 
-    const clientCompanyId = u.clientCompanyId ?? null;
-    if (clientCompanyId) {
-      const [company] = await db
-        .select({ isActive: clientCompanies.isActive, isConfirmed: clientCompanies.isConfirmed })
-        .from(clientCompanies)
-        .where(eq(clientCompanies.id, clientCompanyId));
-      if (company && !company.isConfirmed) {
-        throw new ForbiddenError("لم يتم تأكيد بريد الشركة بعد، يرجى التحقق من بريدك الإلكتروني");
-      }
-      if (company && !company.isActive) {
-        throw new ForbiddenError("تم تجميد شركتك، يرجى التواصل مع المسؤول");
-      }
+      // Re-check on every request so freezing a user/company takes effect
+      // immediately, not only at the next sign-in.
+      const error = companyAccessError(
+        !!u.isFrozen,
+        await getCompanyStatus({ companyType, hiringCompanyId, clientCompanyId })
+      );
+      if (error) throw new ForbiddenError(error);
+
+      req.user = {
+        id: u.id,
+        name: u.name,
+        email: u.email,
+        role: companyType === "hiring" ? "company_user" : "client_company_user",
+        hiringCompanyId,
+        clientCompanyId,
+      };
+      next();
+      return;
     }
-
-    req.user = {
-      id: u.id,
-      name: u.name,
-      email: u.email,
-      role: "client_company_user",
-      hiringCompanyId: null,
-      clientCompanyId,
-    };
-    next();
-    return;
   }
 
-  throw new UnauthorizedError();
+  throw new UnauthorizedError("يرجى تسجيل الدخول");
 }
 
 export function requireRole(...roles: Array<"super_admin" | "company_user" | "client_company_user">) {
   return (req: Request, _res: Response, next: NextFunction): void => {
-    if (!req.user) throw new UnauthorizedError();
-    if (!roles.includes(req.user.role)) throw new ForbiddenError();
+    if (!req.user) throw new UnauthorizedError("يرجى تسجيل الدخول");
+    if (!roles.includes(req.user.role)) throw new ForbiddenError("ليس لديك صلاحية للوصول");
     next();
   };
 }

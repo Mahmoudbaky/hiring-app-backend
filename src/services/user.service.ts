@@ -1,135 +1,134 @@
-import { eq } from "drizzle-orm";
+import { desc, eq } from "drizzle-orm";
 import { db } from "../db/index.js";
-import { hiringUsers, clientUsers, hiringCompanies, clientCompanies } from "../db/schema.js";
-import { hiringAuth } from "../lib/auth.js";
-import type { CreateUserInput, UpdateUserInput } from "../schemas/user.schema.js";
+import { companyUsers, hiringCompanies, clientCompanies } from "../db/schema.js";
+import { companyAuth, createCredentialUser } from "../lib/auth.js";
+import { BadRequestError, ConflictError, NotFoundError } from "../utils/errors.js";
+import type { UpdateUserInput } from "../schemas/user.schema.js";
 
 const userFields = {
-  id: hiringUsers.id,
-  name: hiringUsers.name,
-  email: hiringUsers.email,
-  phoneNumber: hiringUsers.phoneNumber,
-  isFrozen: hiringUsers.isFrozen,
-  hiringCompanyId: hiringUsers.hiringCompanyId,
-  createdAt: hiringUsers.createdAt,
+  id: companyUsers.id,
+  name: companyUsers.name,
+  email: companyUsers.email,
+  phoneNumber: companyUsers.phoneNumber,
+  isFrozen: companyUsers.isFrozen,
+  companyType: companyUsers.companyType,
+  hiringCompanyId: companyUsers.hiringCompanyId,
+  clientCompanyId: companyUsers.clientCompanyId,
+  createdAt: companyUsers.createdAt,
 } as const;
 
+export type CreateCompanyUserInput = {
+  name: string;
+  email: string;
+  password: string;
+  phoneNumber?: string | null;
+  companyType: "hiring" | "client";
+  companyId: string;
+};
+
+/** Create a company user already attached to its company. */
+export async function createCompanyUser(data: CreateCompanyUserInput) {
+  const table = data.companyType === "hiring" ? hiringCompanies : clientCompanies;
+  const [company] = await db.select({ id: table.id }).from(table).where(eq(table.id, data.companyId));
+  if (!company) throw new NotFoundError("الشركة غير موجودة");
+
+  const [existing] = await db
+    .select({ id: companyUsers.id })
+    .from(companyUsers)
+    .where(eq(companyUsers.email, data.email));
+  if (existing) throw new ConflictError("البريد الإلكتروني مستخدم بالفعل");
+
+  const user = await createCredentialUser(companyAuth, {
+    name: data.name,
+    email: data.email,
+    password: data.password,
+    extra: {
+      companyType: data.companyType,
+      hiringCompanyId: data.companyType === "hiring" ? data.companyId : null,
+      clientCompanyId: data.companyType === "client" ? data.companyId : null,
+      phoneNumber: data.phoneNumber ?? null,
+    },
+  });
+
+  const [created] = await db.select(userFields).from(companyUsers).where(eq(companyUsers.id, user.id));
+  return created;
+}
+
 export const userService = {
-  // Hiring-scoped list (used by company_user for their own company's users).
-  async list(hiringCompanyId?: string | null) {
+  // Users of one hiring company (used by company_user for their own company).
+  async list(hiringCompanyId: string | null | undefined) {
+    if (!hiringCompanyId) return [];
     return db
       .select(userFields)
-      .from(hiringUsers)
-      .where(hiringCompanyId ? eq(hiringUsers.hiringCompanyId, hiringCompanyId) : undefined)
-      .orderBy(hiringUsers.createdAt);
+      .from(companyUsers)
+      .where(eq(companyUsers.hiringCompanyId, hiringCompanyId))
+      .orderBy(companyUsers.createdAt);
   },
 
-  // Cross-portal list (super admin): every company user from both portals,
-  // annotated with its company + portal type.
+  // Super admin: every company user (hiring + client) with its company name.
   async listAll() {
-    const hiringRows = await db
+    const rows = await db
       .select({
-        id: hiringUsers.id,
-        name: hiringUsers.name,
-        email: hiringUsers.email,
-        phoneNumber: hiringUsers.phoneNumber,
-        isFrozen: hiringUsers.isFrozen,
-        companyId: hiringUsers.hiringCompanyId,
-        companyName: hiringCompanies.companyName,
-        createdAt: hiringUsers.createdAt,
+        ...userFields,
+        hiringCompanyName: hiringCompanies.companyName,
+        clientCompanyName: clientCompanies.companyName,
       })
-      .from(hiringUsers)
-      .leftJoin(hiringCompanies, eq(hiringUsers.hiringCompanyId, hiringCompanies.id));
+      .from(companyUsers)
+      .leftJoin(hiringCompanies, eq(companyUsers.hiringCompanyId, hiringCompanies.id))
+      .leftJoin(clientCompanies, eq(companyUsers.clientCompanyId, clientCompanies.id))
+      .orderBy(desc(companyUsers.createdAt));
 
-    const clientRows = await db
-      .select({
-        id: clientUsers.id,
-        name: clientUsers.name,
-        email: clientUsers.email,
-        phoneNumber: clientUsers.phoneNumber,
-        isFrozen: clientUsers.isFrozen,
-        companyId: clientUsers.clientCompanyId,
-        companyName: clientCompanies.companyName,
-        createdAt: clientUsers.createdAt,
-      })
-      .from(clientUsers)
-      .leftJoin(clientCompanies, eq(clientUsers.clientCompanyId, clientCompanies.id));
-
-    const hiring = hiringRows.map((r) => ({
+    return rows.map(({ hiringCompanyName, clientCompanyName, ...r }) => ({
       ...r,
-      companyType: "hiring" as const,
-      role: "company_user" as const,
+      companyId: r.companyType === "hiring" ? r.hiringCompanyId : r.clientCompanyId,
+      companyName: r.companyType === "hiring" ? hiringCompanyName : clientCompanyName,
+      role: r.companyType === "hiring" ? ("company_user" as const) : ("client_company_user" as const),
     }));
-    const client = clientRows.map((r) => ({
-      ...r,
-      companyType: "client" as const,
-      role: "client_company_user" as const,
-    }));
-
-    return [...hiring, ...client].sort(
-      (a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()
-    );
   },
 
-  async create(data: CreateUserInput) {
-    const result = await hiringAuth.api.signUpEmail({
-      body: { name: data.name, email: data.email, password: data.password },
-    });
+  create: createCompanyUser,
 
-    const [created] = await db
-      .update(hiringUsers)
-      .set({
-        phoneNumber: data.phoneNumber ?? null,
-        hiringCompanyId: data.hiringCompanyId ?? null,
-        updatedAt: new Date(),
-      })
-      .where(eq(hiringUsers.id, result.user.id))
-      .returning(userFields);
-
-    return created;
-  },
-
-  // Update a user in whichever portal owns the id (hiring first, then client).
   async update(id: string, data: UpdateUserInput) {
-    const [hiring] = await db
-      .update(hiringUsers)
-      .set({ ...data, updatedAt: new Date() })
-      .where(eq(hiringUsers.id, id))
-      .returning(userFields);
-    if (hiring) return hiring;
+    const { hiringCompanyId, ...rest } = data;
 
-    // Client users have no hiringCompanyId — only apply the shared fields.
-    const [client] = await db
-      .update(clientUsers)
+    // Moving a user to another hiring company is only valid for hiring users;
+    // the DB CHECK constraint forbids a null company.
+    if (hiringCompanyId !== undefined) {
+      const [current] = await db
+        .select({ companyType: companyUsers.companyType })
+        .from(companyUsers)
+        .where(eq(companyUsers.id, id));
+      if (!current) return null;
+      if (current.companyType !== "hiring" || !hiringCompanyId) {
+        throw new BadRequestError("لا يمكن تغيير شركة هذا المستخدم");
+      }
+    }
+
+    const [updated] = await db
+      .update(companyUsers)
       .set({
-        ...(data.name !== undefined ? { name: data.name } : {}),
-        ...(data.phoneNumber !== undefined ? { phoneNumber: data.phoneNumber } : {}),
-        ...(data.isFrozen !== undefined ? { isFrozen: data.isFrozen } : {}),
+        ...rest,
+        ...(hiringCompanyId ? { hiringCompanyId } : {}),
         updatedAt: new Date(),
       })
-      .where(eq(clientUsers.id, id))
-      .returning({
-        id: clientUsers.id,
-        name: clientUsers.name,
-        email: clientUsers.email,
-        phoneNumber: clientUsers.phoneNumber,
-        isFrozen: clientUsers.isFrozen,
-        createdAt: clientUsers.createdAt,
-      });
-    return client ?? null;
+      .where(eq(companyUsers.id, id))
+      .returning(userFields);
+
+    // Freezing must take effect now: end the user's sessions.
+    if (updated && data.isFrozen) await revokeSessions(id);
+    return updated ?? null;
   },
 
   async remove(id: string) {
-    const [hiring] = await db
-      .delete(hiringUsers)
-      .where(eq(hiringUsers.id, id))
-      .returning({ id: hiringUsers.id });
-    if (hiring) return hiring;
-
-    const [client] = await db
-      .delete(clientUsers)
-      .where(eq(clientUsers.id, id))
-      .returning({ id: clientUsers.id });
-    return client ?? null;
+    const [deleted] = await db
+      .delete(companyUsers)
+      .where(eq(companyUsers.id, id))
+      .returning({ id: companyUsers.id });
+    return deleted ?? null;
   },
 };
+
+async function revokeSessions(userId: string) {
+  const ctx = await companyAuth.$context;
+  await ctx.internalAdapter.deleteUserSessions(userId);
+}

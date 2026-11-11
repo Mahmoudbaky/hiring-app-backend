@@ -1,106 +1,135 @@
-import { eq } from "drizzle-orm";
+import { createHmac, randomInt, timingSafeEqual } from "node:crypto";
+import { eq, sql } from "drizzle-orm";
 import { db } from "../db/index.js";
-import { hiringCompanies, clientCompanies, hiringUsers, clientUsers } from "../db/schema.js";
+import { hiringCompanies, clientCompanies, companyUsers } from "../db/schema.js";
 import { sendOtpEmail } from "../utils/mailer.js";
-import { BadRequestError, NotFoundError } from "../utils/errors.js";
+import { AppError, BadRequestError } from "../utils/errors.js";
+import logger from "../lib/logger.js";
 
 const OTP_TTL_MINUTES = 10;
+const OTP_MAX_ATTEMPTS = 5;
+const OTP_RESEND_COOLDOWN_SECONDS = 60;
+
+// Generic message so the endpoint never reveals whether an email is registered
+// or already confirmed.
+const INVALID_OTP = "رمز التحقق غير صحيح أو منتهي الصلاحية";
+
+const OTP_SECRET = process.env.BETTER_AUTH_SECRET ?? "dev-only-otp-secret";
 
 function generateOtp(): string {
-  return Math.floor(100000 + Math.random() * 900000).toString();
+  return randomInt(0, 1_000_000).toString().padStart(6, "0");
 }
 
-type UnconfirmedResult = {
-  companyId: string;
-  companyName: string;
-  type: "hiring" | "client";
+// HMAC instead of a plain hash: a 6-digit code has only 1M values, so an
+// unkeyed hash could be reversed instantly from a DB dump.
+function hashOtp(otp: string, companyId: string): string {
+  return createHmac("sha256", OTP_SECRET).update(`${companyId}:${otp}`).digest("hex");
+}
+
+function safeEqual(a: string, b: string): boolean {
+  const ab = Buffer.from(a);
+  const bb = Buffer.from(b);
+  return ab.length === bb.length && timingSafeEqual(ab, bb);
+}
+
+type PendingCompany = {
+  table: typeof hiringCompanies | typeof clientCompanies;
+  company: typeof hiringCompanies.$inferSelect | typeof clientCompanies.$inferSelect;
   userName: string;
 };
 
-async function getUnconfirmedCompany(email: string): Promise<UnconfirmedResult> {
-  // A given email belongs to exactly one portal — look it up in the hiring
-  // user table first, then the client user table.
-  const [hiringUser] = await db
-    .select({ hiringCompanyId: hiringUsers.hiringCompanyId, name: hiringUsers.name })
-    .from(hiringUsers)
-    .where(eq(hiringUsers.email, email));
+/** The unconfirmed company owned by this email, or null. */
+async function findPendingCompany(email: string): Promise<PendingCompany | null> {
+  const [user] = await db
+    .select({
+      name: companyUsers.name,
+      companyType: companyUsers.companyType,
+      hiringCompanyId: companyUsers.hiringCompanyId,
+      clientCompanyId: companyUsers.clientCompanyId,
+    })
+    .from(companyUsers)
+    .where(eq(companyUsers.email, email));
+  if (!user) return null;
 
-  if (hiringUser?.hiringCompanyId) {
-    const [company] = await db
-      .select()
-      .from(hiringCompanies)
-      .where(eq(hiringCompanies.id, hiringUser.hiringCompanyId));
-    if (!company) throw new NotFoundError("الشركة غير موجودة");
-    if (company.isConfirmed) throw new BadRequestError("الشركة مؤكدة بالفعل");
-    return { companyId: company.id, companyName: company.companyName, type: "hiring", userName: hiringUser.name };
-  }
+  const table = user.companyType === "hiring" ? hiringCompanies : clientCompanies;
+  const companyId = user.companyType === "hiring" ? user.hiringCompanyId : user.clientCompanyId;
+  if (!companyId) return null;
 
-  const [clientUser] = await db
-    .select({ clientCompanyId: clientUsers.clientCompanyId, name: clientUsers.name })
-    .from(clientUsers)
-    .where(eq(clientUsers.email, email));
+  const [company] = await db.select().from(table).where(eq(table.id, companyId));
+  if (!company || company.isConfirmed) return null;
 
-  if (clientUser?.clientCompanyId) {
-    const [company] = await db
-      .select()
-      .from(clientCompanies)
-      .where(eq(clientCompanies.id, clientUser.clientCompanyId));
-    if (!company) throw new NotFoundError("الشركة غير موجودة");
-    if (company.isConfirmed) throw new BadRequestError("الشركة مؤكدة بالفعل");
-    return { companyId: company.id, companyName: company.companyName, type: "client", userName: clientUser.name };
-  }
-
-  throw new NotFoundError("البريد الإلكتروني غير مسجل");
+  return { table, company, userName: user.name };
 }
 
+/**
+ * Generate, store and email a new OTP. Silently does nothing when the email
+ * has no unconfirmed company (no account enumeration).
+ */
 export async function sendOtp(email: string): Promise<void> {
-  const { companyId, companyName, type, userName } = await getUnconfirmedCompany(email);
+  const pending = await findPendingCompany(email);
+  if (!pending) {
+    logger.info(`[otp] send skipped — no pending company for ${email}`);
+    return;
+  }
+  const { table, company, userName } = pending;
 
-  const otp = generateOtp();
-  const expiresAt = new Date(Date.now() + OTP_TTL_MINUTES * 60 * 1000);
-
-  if (type === "hiring") {
-    await db
-      .update(hiringCompanies)
-      .set({ otpCode: otp, otpExpiresAt: expiresAt, updatedAt: new Date() })
-      .where(eq(hiringCompanies.id, companyId));
-  } else {
-    await db
-      .update(clientCompanies)
-      .set({ otpCode: otp, otpExpiresAt: expiresAt, updatedAt: new Date() })
-      .where(eq(clientCompanies.id, companyId));
+  if (
+    company.otpSentAt &&
+    Date.now() - company.otpSentAt.getTime() < OTP_RESEND_COOLDOWN_SECONDS * 1000
+  ) {
+    throw new AppError(429, "يرجى الانتظار دقيقة قبل طلب رمز جديد");
   }
 
-  await sendOtpEmail({ to: email, userName, otp, companyName });
+  const otp = generateOtp();
+  const now = new Date();
+  await db
+    .update(table)
+    .set({
+      otpCode: hashOtp(otp, company.id),
+      otpExpiresAt: new Date(now.getTime() + OTP_TTL_MINUTES * 60 * 1000),
+      otpAttempts: 0,
+      otpSentAt: now,
+      updatedAt: now,
+    })
+    .where(eq(table.id, company.id));
+
+  await sendOtpEmail({ to: email, userName, otp, companyName: company.companyName });
 }
 
 export async function verifyOtp(email: string, otp: string): Promise<void> {
-  const { companyId, type } = await getUnconfirmedCompany(email);
-
-  const [company] =
-    type === "hiring"
-      ? await db.select().from(hiringCompanies).where(eq(hiringCompanies.id, companyId))
-      : await db.select().from(clientCompanies).where(eq(clientCompanies.id, companyId));
+  const pending = await findPendingCompany(email);
+  if (!pending) throw new BadRequestError(INVALID_OTP);
+  const { table, company } = pending;
 
   if (!company.otpCode || !company.otpExpiresAt) {
     throw new BadRequestError("يرجى طلب رمز تحقق جديد");
   }
-  if (company.otpCode !== otp) {
-    throw new BadRequestError("رمز التحقق غير صحيح");
+  if (company.otpAttempts >= OTP_MAX_ATTEMPTS) {
+    await db
+      .update(table)
+      .set({ otpCode: null, otpExpiresAt: null, updatedAt: new Date() })
+      .where(eq(table.id, company.id));
+    throw new BadRequestError("تم تجاوز عدد المحاولات المسموح، يرجى طلب رمز جديد");
   }
   if (new Date() > company.otpExpiresAt) {
     throw new BadRequestError("انتهت صلاحية رمز التحقق، يرجى طلب رمز جديد");
   }
-
-  if (type === "hiring") {
+  if (!safeEqual(company.otpCode, hashOtp(otp, company.id))) {
     await db
-      .update(hiringCompanies)
-      .set({ isConfirmed: true, otpCode: null, otpExpiresAt: null, updatedAt: new Date() })
-      .where(eq(hiringCompanies.id, companyId));
-  } else {
-    await db
-      .update(clientCompanies)
-      .set({ isConfirmed: true, otpCode: null, otpExpiresAt: null, updatedAt: new Date() })
-      .where(eq(clientCompanies.id, companyId));
+      .update(table)
+      .set({ otpAttempts: sql`${table.otpAttempts} + 1` })
+      .where(eq(table.id, company.id));
+    throw new BadRequestError(INVALID_OTP);
   }
+
+  await db
+    .update(table)
+    .set({
+      isConfirmed: true,
+      otpCode: null,
+      otpExpiresAt: null,
+      otpAttempts: 0,
+      updatedAt: new Date(),
+    })
+    .where(eq(table.id, company.id));
 }

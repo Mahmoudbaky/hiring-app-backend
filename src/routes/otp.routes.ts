@@ -1,13 +1,16 @@
 import { Router } from "express";
 import { z } from "zod";
 import { validate } from "../middleware/validate.js";
+import { otpLimiter } from "../middleware/rateLimit.js";
 import * as otpController from "../controllers/otp.controller.js";
 
 const router: Router = Router();
 
-const sendSchema = z.object({ email: z.string().email() });
-const verifySchema = z.object({ email: z.string().email(), otp: z.string().length(6) });
+const email = z.string().trim().toLowerCase().email();
+const sendSchema = z.object({ email });
+const verifySchema = z.object({ email, otp: z.string().regex(/^\d{6}$/) });
 
+router.use(otpLimiter);
 router.post("/send", validate(sendSchema), otpController.send);
 router.post("/verify", validate(verifySchema), otpController.verify);
 

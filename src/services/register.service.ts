@@ -1,109 +1,68 @@
-import { count, eq } from "drizzle-orm";
+import { eq } from "drizzle-orm";
 import { db } from "../db/index.js";
-import { hiringCompanies, clientCompanies, hiringUsers, clientUsers } from "../db/schema.js";
-import { hiringAuth, clientAuth } from "../lib/auth.js";
+import { hiringCompanies, clientCompanies, clientCompanyPublicColumns, companyUsers } from "../db/schema.js";
+import { insertHiringCompany } from "./company.service.js";
 import { ConflictError } from "../utils/errors.js";
 import type { RegisterCompanyInput } from "../schemas/company.schema.js";
 import { sendOtp } from "./otp.service.js";
-
-async function generateHiringCode(): Promise<string> {
-  const [{ total }] = await db.select({ total: count() }).from(hiringCompanies);
-  const seq = (Number(total) + 1).toString().padStart(3, "0");
-  return `AG${seq}`;
-}
+import { createCompanyUser } from "./user.service.js";
+import logger from "../lib/logger.js";
 
 export async function registerCompany(data: RegisterCompanyInput) {
-  const { companyType = "hiring", companyName, phoneNumber, address, managerName, companyRecord, name, email, password, userPhoneNumber } = data;
+  const {
+    companyType = "hiring",
+    companyName,
+    phoneNumber,
+    address,
+    managerName,
+    companyRecord,
+    name,
+    email,
+    password,
+    userPhoneNumber,
+  } = data;
 
-  if (companyType === "client") {
-    return registerClientCompany({ companyName, phoneNumber, address, managerName, companyRecord, name, email, password, userPhoneNumber });
-  }
+  // One account per email across hiring + client (company_user.email is unique).
+  const [existing] = await db
+    .select({ id: companyUsers.id })
+    .from(companyUsers)
+    .where(eq(companyUsers.email, email));
+  if (existing) throw new ConflictError("البريد الإلكتروني مستخدم بالفعل");
 
-  return registerHiringCompany({ companyName, phoneNumber, address, managerName, companyRecord, name, email, password, userPhoneNumber });
-}
+  const companyValues = { companyName, phoneNumber, address, managerName, companyRecord };
+  const company =
+    companyType === "hiring"
+      ? await insertHiringCompany(companyValues)
+      : (await db.insert(clientCompanies).values(companyValues).returning(clientCompanyPublicColumns))[0];
+  const companyTable = companyType === "hiring" ? hiringCompanies : clientCompanies;
 
-async function registerHiringCompany(data: Omit<RegisterCompanyInput, "companyType">) {
-  const { companyName, phoneNumber, address, managerName, companyRecord, name, email, password, userPhoneNumber } = data;
-
-  // Check email conflict within the hiring portal
-  const [existingUser] = await db
-    .select({ id: hiringUsers.id })
-    .from(hiringUsers)
-    .where(eq(hiringUsers.email, email));
-  if (existingUser) throw new ConflictError("البريد الإلكتروني مستخدم بالفعل");
-
-  const uniqueCode = await generateHiringCode();
-
-  const [company] = await db
-    .insert(hiringCompanies)
-    .values({ companyName, uniqueCode, phoneNumber, address, managerName, companyRecord })
-    .returning();
-
+  let user;
   try {
-    const authResult = await hiringAuth.api.signUpEmail({
-      body: { name, email, password },
+    // createCompanyUser sets the company in the same insert as the user, so
+    // there is never a user row without a company.
+    user = await createCompanyUser({
+      name,
+      email,
+      password,
+      phoneNumber: userPhoneNumber,
+      companyType,
+      companyId: company.id,
     });
-
-    const [user] = await db
-      .update(hiringUsers)
-      .set({ phoneNumber: userPhoneNumber ?? null, hiringCompanyId: company.id, updatedAt: new Date() })
-      .where(eq(hiringUsers.id, authResult.user.id))
-      .returning({
-        id: hiringUsers.id,
-        name: hiringUsers.name,
-        email: hiringUsers.email,
-        phoneNumber: hiringUsers.phoneNumber,
-        hiringCompanyId: hiringUsers.hiringCompanyId,
-        createdAt: hiringUsers.createdAt,
-      });
-
-    sendOtp(email).catch((err) => console.error("[mailer] OTP email failed:", err));
-
-    return { company, user };
   } catch (err) {
-    await db.delete(hiringCompanies).where(eq(hiringCompanies.id, company.id));
+    await db.delete(companyTable).where(eq(companyTable.id, company.id));
     throw err;
   }
-}
 
-async function registerClientCompany(data: Omit<RegisterCompanyInput, "companyType">) {
-  const { companyName, phoneNumber, address, managerName, companyRecord, name, email, password, userPhoneNumber } = data;
-
-  // Check email conflict within the client portal
-  const [existingUser] = await db
-    .select({ id: clientUsers.id })
-    .from(clientUsers)
-    .where(eq(clientUsers.email, email));
-  if (existingUser) throw new ConflictError("البريد الإلكتروني مستخدم بالفعل");
-
-  const [company] = await db
-    .insert(clientCompanies)
-    .values({ companyName, phoneNumber, address, managerName, companyRecord })
-    .returning();
-
+  // Await so the email is actually sent on serverless (Vercel stops the
+  // function once the response is out). A mail failure doesn't undo the
+  // registration — the user can use "resend code".
+  let otpSent = true;
   try {
-    const authResult = await clientAuth.api.signUpEmail({
-      body: { name, email, password },
-    });
-
-    const [user] = await db
-      .update(clientUsers)
-      .set({ phoneNumber: userPhoneNumber ?? null, clientCompanyId: company.id, updatedAt: new Date() })
-      .where(eq(clientUsers.id, authResult.user.id))
-      .returning({
-        id: clientUsers.id,
-        name: clientUsers.name,
-        email: clientUsers.email,
-        phoneNumber: clientUsers.phoneNumber,
-        clientCompanyId: clientUsers.clientCompanyId,
-        createdAt: clientUsers.createdAt,
-      });
-
-    sendOtp(email).catch((err) => console.error("[mailer] OTP email failed:", err));
-
-    return { company, user };
+    await sendOtp(email);
   } catch (err) {
-    await db.delete(clientCompanies).where(eq(clientCompanies.id, company.id));
-    throw err;
+    otpSent = false;
+    logger.error(`[mailer] OTP email failed: ${(err as Error).message}`);
   }
+
+  return { company, user, otpSent };
 }
